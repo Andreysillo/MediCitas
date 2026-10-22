@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
-import { iniciarSesion, usuariosDePrueba } from "./api";
+import { useEffect, useState, type ComponentType } from "react";
+import { iniciarSesion, usuariosDePrueba, type Sesion } from "./api";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
 import { navegar, useRuta } from "./router";
+import Agenda from "./vistas/Agenda";
+
+// Vista de cada ruta. Las que aún no existen muestran el aviso de "próximamente".
+const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
+  "/agenda": Agenda,
+};
 
 const GRUPOS = usuariosDePrueba();
 const RECEPCION_INICIAL = GRUPOS[1].usuarios.find((u) => u.rol === "RECEPCION")!;
@@ -13,6 +19,7 @@ export default function App() {
   const ruta = useRuta();
   const rutas = rutasDe(rol);
   const actual = rutas.find((r) => r.path === ruta);
+  const Vista = actual && VISTAS[actual.path];
 
   // Si la ruta no existe o el rol no la tiene, se va a la primera permitida.
   useEffect(() => {
@@ -65,7 +72,12 @@ export default function App() {
               <h1>{actual.titulo}</h1>
               <p>{actual.descripcion}</p>
             </header>
-            <div className="placeholder">Esta vista se construye en los siguientes avances.</div>
+            {/* key: al cambiar de usuario la vista se monta de nuevo y no arrastra datos de otra clínica. */}
+            {Vista ? (
+              <Vista key={sesion.usuario.id} sesion={sesion} />
+            ) : (
+              <div className="placeholder">Esta vista se construye en los siguientes avances.</div>
+            )}
           </>
         )}
       </main>

@@ -95,6 +95,14 @@ export type Cita = {
 
 // ---------- Reglas del dominio que la interfaz también necesita ----------
 
+export const ESTADO_NOMBRE: Record<EstadoCita, string> = {
+  RESERVADA: "Reservada",
+  ATENDIDA: "Atendida",
+  AUSENTE: "Ausente",
+  CANCELADA: "Cancelada",
+  REPROGRAMADA: "Reprogramada",
+};
+
 /** Estados que ocupan agenda. CANCELADA y REPROGRAMADA liberan el espacio (I7). */
 export const ESTADOS_VIGENTES: readonly EstadoCita[] = ["RESERVADA", "ATENDIDA", "AUSENTE"];
 

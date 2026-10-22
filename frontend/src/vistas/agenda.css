@@ -1,0 +1,282 @@
+.agenda {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.agenda[aria-busy="true"] .calendario {
+  opacity: 0.55;
+  transition: opacity 150ms ease-out;
+}
+
+.agenda-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-4);
+}
+
+.agenda-toolbar .btn-cta {
+  margin-left: auto;
+}
+
+.day-nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.agenda-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.agenda-titulo h2 {
+  font: 400 var(--step-3) / 1 var(--font-display);
+  color: var(--primary);
+}
+
+.agenda-titulo h2::first-letter {
+  text-transform: uppercase;
+}
+
+/* ---------- Resumen por estado ---------- */
+
+.resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resumen li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: var(--step--1);
+}
+
+.resumen li::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--estado);
+}
+
+.resumen-vacio {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+/* Color de cada estado, compartido por el resumen y los bloques de cita. */
+[data-estado="RESERVADA"] { --estado: var(--st-reservada); }
+[data-estado="ATENDIDA"] { --estado: var(--st-atendida); }
+[data-estado="AUSENTE"] { --estado: var(--st-ausente); }
+[data-estado="CANCELADA"] { --estado: var(--st-cancelada); }
+[data-estado="REPROGRAMADA"] { --estado: var(--st-reprogramada); }
+
+/* ---------- Calendario ---------- */
+
+/* Una columna para el eje de horas y una por profesional. Cada columna usa subgrid
+   para que todos los encabezados midan lo mismo aunque un nombre ocupe dos líneas. */
+.calendario {
+  --px-min: 1.8px;
+  display: grid;
+  grid-template-columns: 56px repeat(var(--cols), minmax(210px, 1fr));
+  grid-template-rows: auto auto;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cal-eje {
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  height: calc(var(--min-total) * var(--px-min));
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.cal-eje span {
+  position: absolute;
+  top: calc(var(--ini) * var(--px-min));
+  right: var(--space-2);
+  padding-top: 2px;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-col {
+  grid-row: 1 / span 2;
+  display: grid;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+}
+
+.cal-head {
+  display: grid;
+  align-content: start;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.cal-head strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.cal-head span {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* Fondo gris = fuera de horario. Líneas finas cada hora sin agregar elementos. */
+.cal-cuerpo {
+  position: relative;
+  height: calc(var(--min-total) * var(--px-min));
+  background-color: #f1f5f9;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--line) 0 1px,
+    transparent 1px calc(60 * var(--px-min))
+  );
+}
+
+.cal-abierto,
+.cal-bloqueo,
+.cita,
+.cal-ahora {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--ini) * var(--px-min));
+  height: calc(var(--dur) * var(--px-min));
+}
+
+.cal-abierto {
+  background: var(--surface);
+  opacity: 0.85;
+}
+
+.cal-bloqueo {
+  z-index: 1;
+  padding: var(--space-1) var(--space-2);
+  overflow: hidden;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  background: repeating-linear-gradient(135deg, #e2e8f0 0 6px, #f8fafc 6px 12px);
+}
+
+.cita {
+  z-index: 2;
+  left: 4px;
+  right: 4px;
+  overflow: hidden;
+  padding: 3px var(--space-2);
+  border-left: 3px solid var(--estado);
+  border-radius: 6px;
+  background: var(--secondary);
+  font-size: var(--step--1);
+  line-height: 1.3;
+  /* 1px de aire entre citas consecutivas. */
+  box-shadow: inset 0 -1px 0 var(--surface);
+}
+
+.cita[data-estado="ATENDIDA"],
+.cita[data-estado="AUSENTE"] {
+  background: #f1f5f9;
+}
+
+.cita[data-conflicto] {
+  background: #fff7ed;
+  border-left-color: var(--accent);
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+
+.cita p {
+  margin: 0;
+}
+
+.cita-linea {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.cita-linea time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.cita-linea strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cita-estado {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--estado);
+}
+
+.cita[data-conflicto] .cita-estado {
+  color: var(--accent);
+}
+
+.cita-detalle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+/* En citas de menos de 25 min solo cabe una línea: el servicio queda en el aria-label. */
+.cita[data-corta] .cita-detalle {
+  display: none;
+}
+
+.cal-ahora {
+  z-index: 3;
+  height: 0;
+  border-top: 2px solid var(--primary-2);
+}
+
+.cal-ahora::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-2);
+}
+
+@media (max-width: 860px) {
+  .agenda-toolbar .btn-cta {
+    margin-left: 0;
+    width: 100%;
+  }
+}
