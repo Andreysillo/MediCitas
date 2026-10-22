@@ -1,0 +1,243 @@
+/* Tokens: 60% fondo, 30% tinta/superficies, 10% acento solo en la acción principal. */
+:root {
+  --bg: #f5f3ee;
+  --surface: #fffefb;
+  --ink: #1a1d1b;
+  --ink-soft: #5d625e;
+  --line: #e2ded5;
+  --accent: #d94f2b;
+  --accent-ink: #fffefb;
+
+  /* Estados de la cita: tonos apagados para no competir con el acento. */
+  --st-reservada: #2f5d8a;
+  --st-atendida: #2e6b4a;
+  --st-ausente: #8a6a1f;
+  --st-cancelada: #8b8f8b;
+  --st-reprogramada: #6b4f8a;
+
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-ui: "Instrument Sans", system-ui, sans-serif;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+  --step-4: 3.5rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius: 10px;
+  --sidebar: 248px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 var(--step-0) / 1.5 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.05;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---------- Shell ---------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar) 1fr;
+  min-height: 100dvh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-4);
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  font: 400 var(--step-2) / 1 var(--font-display);
+  padding-inline: var(--space-3);
+  text-decoration: none;
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.nav a[aria-current="page"] {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+@media (hover: hover) {
+  .nav a:not([aria-current="page"]):hover {
+    background: var(--line);
+    color: var(--ink);
+  }
+}
+
+.session {
+  margin-top: auto;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: var(--step--1);
+}
+
+.session label {
+  color: var(--ink-soft);
+}
+
+.session select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--surface);
+}
+
+.main {
+  padding: var(--space-7) clamp(var(--space-4), 5vw, var(--space-7));
+  min-width: 0;
+}
+
+.page-head {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.page-head h1 {
+  font: 400 var(--step-4) / 1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.page-head p {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+.eyebrow {
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.placeholder {
+  padding: var(--space-7) var(--space-5);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* Teléfono: la barra lateral pasa arriba y el menú se desplaza en horizontal. */
+@media (max-width: 860px) {
+  /* minmax(0, 1fr) evita que el menú desplazable ensanche toda la página. */
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: var(--space-2);
+  }
+
+  .nav a {
+    white-space: nowrap;
+  }
+
+  .session {
+    margin-top: 0;
+  }
+
+  .main {
+    padding-block: var(--space-5);
+  }
+
+  .page-head h1 {
+    font-size: var(--step-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
