@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { ROL_NOMBRE, rutasDe, type Rol } from "./navigation";
+import { iniciarSesion, usuariosDePrueba } from "./api";
+import { ROL_NOMBRE, rutasDe } from "./navigation";
 import { navegar, useRuta } from "./router";
 
-const ROLES = Object.keys(ROL_NOMBRE) as Rol[];
+const GRUPOS = usuariosDePrueba();
+const RECEPCION_INICIAL = GRUPOS[1].usuarios.find((u) => u.rol === "RECEPCION")!;
 
 export default function App() {
-  // Provisional: el rol se elige a mano hasta conectar Keycloak, que lo traerá en el token.
-  const [rol, setRol] = useState<Rol>("RECEPCION");
+  // Provisional: se elige el usuario a mano hasta conectar Keycloak, que traerá clínica y rol en el token.
+  const [sesion, setSesion] = useState(() => iniciarSesion(RECEPCION_INICIAL.id));
+  const rol = sesion.usuario.rol;
   const ruta = useRuta();
   const rutas = rutasDe(rol);
   const actual = rutas.find((r) => r.path === ruta);
@@ -32,12 +35,20 @@ export default function App() {
         </nav>
 
         <div className="session">
-          <label htmlFor="rol">Ver como</label>
-          <select id="rol" value={rol} onChange={(e) => setRol(e.target.value as Rol)}>
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROL_NOMBRE[r]}
-              </option>
+          <div className="session-who">
+            <strong>{sesion.usuario.nombre}</strong>
+            <span>{sesion.clinica?.nombre ?? "Plataforma MediCitas"}</span>
+          </div>
+          <label htmlFor="usuario">Ver como</label>
+          <select id="usuario" value={sesion.usuario.id} onChange={(e) => setSesion(iniciarSesion(e.target.value))}>
+            {GRUPOS.map((g) => (
+              <optgroup key={g.etiqueta} label={g.etiqueta}>
+                {g.usuarios.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nombre} · {ROL_NOMBRE[u.rol]}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
@@ -47,7 +58,10 @@ export default function App() {
         {actual && (
           <>
             <header className="page-head">
-              <span className="eyebrow">{ROL_NOMBRE[rol]}</span>
+              <span className="eyebrow">
+                {ROL_NOMBRE[rol]}
+                {sesion.clinica && ` · ${sesion.clinica.nombre}`}
+              </span>
               <h1>{actual.titulo}</h1>
               <p>{actual.descripcion}</p>
             </header>

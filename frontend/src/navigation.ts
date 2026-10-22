@@ -1,5 +1,4 @@
-// Roles del dominio: los mismos códigos que la tabla `rol` y que Keycloak.
-export type Rol = "ADM_PLATAFORMA" | "ADM_CLINICA" | "RECEPCION" | "PROFESIONAL";
+import type { Rol } from "./api/dominio";
 
 export const ROL_NOMBRE: Record<Rol, string> = {
   ADM_PLATAFORMA: "Administración de plataforma",

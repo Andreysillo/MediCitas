@@ -1,19 +1,26 @@
-/* Tokens: 60% fondo, 30% tinta/superficies, 10% acento solo en la acción principal. */
+/* Tokens: 60% fondo, 30% azules/superficies, 10% naranja solo en la acción principal (CTA). */
 :root {
-  --bg: #f5f3ee;
-  --surface: #fffefb;
-  --ink: #1a1d1b;
-  --ink-soft: #5d625e;
-  --line: #e2ded5;
-  --accent: #d94f2b;
-  --accent-ink: #fffefb;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --ink-soft: #475569;
+  --line: #e2e8f0;
 
-  /* Estados de la cita: tonos apagados para no competir con el acento. */
-  --st-reservada: #2f5d8a;
-  --st-atendida: #2e6b4a;
-  --st-ausente: #8a6a1f;
-  --st-cancelada: #8b8f8b;
-  --st-reprogramada: #6b4f8a;
+  --primary: #1e3a8a;
+  --primary-2: #2563eb;
+  --secondary: #e0f2fe;
+
+  /* Naranja oscuro y no #EA580C: con texto blanco este sí pasa el contraste AA (4.5:1). */
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-ink: #ffffff;
+
+  /* Estados de la cita. */
+  --st-reservada: #1d4ed8;
+  --st-atendida: #15803d;
+  --st-ausente: #a16207;
+  --st-cancelada: #64748b;
+  --st-reprogramada: #7c3aed;
 
   --font-display: "Instrument Serif", Georgia, serif;
   --font-ui: "Instrument Sans", system-ui, sans-serif;
@@ -72,7 +79,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--primary-2);
   outline-offset: 2px;
 }
 
@@ -93,16 +100,18 @@ a {
   gap: var(--space-6);
   padding: var(--space-6) var(--space-4);
   border-right: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .brand {
   font: 400 var(--step-2) / 1 var(--font-display);
   padding-inline: var(--space-3);
+  color: var(--primary);
   text-decoration: none;
 }
 
 .brand span {
-  color: var(--accent);
+  color: var(--primary-2);
 }
 
 .nav {
@@ -123,14 +132,14 @@ a {
 }
 
 .nav a[aria-current="page"] {
-  background: var(--ink);
+  background: var(--primary);
   color: var(--surface);
 }
 
 @media (hover: hover) {
   .nav a:not([aria-current="page"]):hover {
-    background: var(--line);
-    color: var(--ink);
+    background: var(--secondary);
+    color: var(--primary);
   }
 }
 
@@ -144,6 +153,19 @@ a {
   font-size: var(--step--1);
 }
 
+.session-who {
+  display: grid;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.session-who strong {
+  font-size: var(--step-0);
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.session-who span,
 .session label {
   color: var(--ink-soft);
 }
@@ -172,6 +194,7 @@ a {
 .page-head h1 {
   font: 400 var(--step-4) / 1 var(--font-display);
   letter-spacing: -0.02em;
+  color: var(--primary);
 }
 
 .page-head p {
