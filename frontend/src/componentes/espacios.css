@@ -1,0 +1,97 @@
+/* Selector de espacios libres: lo usan la reserva y el diálogo de reprogramar. */
+
+.espacios {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.semana-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: 500;
+  color: var(--primary);
+}
+
+/* Mientras se actualiza, los horarios viejos no se pueden elegir. */
+.espacios[aria-busy="true"] .prof-card {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.prof-card {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  transition: opacity 150ms ease-out;
+}
+
+.prof-card header {
+  display: grid;
+}
+
+.prof-card header strong {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.prof-card header span {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(84px, 1fr));
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+
+.dia {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.dia h3 {
+  font-size: var(--step--1);
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.dia-vacio {
+  text-align: center;
+  color: var(--line);
+}
+
+.slot {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+}
+
+.slot[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--surface);
+  transform: scale(1.06);
+}
+
+.slot-mas {
+  background: transparent;
+  color: var(--primary-2);
+}
+
+@media (hover: hover) {
+  .slot:not([aria-pressed="true"]):hover {
+    background: #bae6fd;
+  }
+}

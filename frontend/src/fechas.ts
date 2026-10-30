@@ -35,3 +35,8 @@ const FMT_FECHA_LARGA = new Intl.DateTimeFormat("es-CR", { weekday: "long", day:
 export const hora = (instante: string) => FMT_HORA.format(new Date(instante));
 
 export const fechaLarga = (fecha: string) => FMT_FECHA_LARGA.format(inicioDelDia(fecha));
+
+const FMT_FECHA_CORTA = new Intl.DateTimeFormat("es-CR", { weekday: "short", day: "numeric", month: "short" });
+
+/** "jue, 22 oct" */
+export const fechaCorta = (fecha: string) => FMT_FECHA_CORTA.format(inicioDelDia(fecha));

@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { agendaDelDia, listarProfesionales, type AgendaDia, type CitaVista, type ProfesionalVista, type Sesion } from "../api";
 import { ESTADO_NOMBRE, esVigente, seSolapan, type EstadoCita } from "../api/dominio";
 import { fechaLarga, hoy, hora, inicioDelDia, minutosHora, sumarDias } from "../fechas";
+import DetalleCita from "./DetalleCita";
 import "./agenda.css";
 
 const ESTADOS = Object.keys(ESTADO_NOMBRE) as EstadoCita[];
@@ -20,10 +21,16 @@ export default function Agenda({ sesion }: Props) {
   const [agenda, setAgenda] = useState<AgendaDia | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  // Cita abierta en el diálogo de detalle, y mensaje de la última acción realizada.
+  const [abierta, setAbierta] = useState<{ cita: CitaVista; conflicto: boolean } | null>(null);
+  const [aviso, setAviso] = useState("");
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     if (!esProfesional) listarProfesionales().then(setProfesionales);
   }, [esProfesional]);
+
+  useEffect(() => setAviso(""), [fecha, filtro]);
 
   // "vigente" descarta respuestas viejas si el usuario cambia de día antes de que lleguen.
   useEffect(() => {
@@ -40,7 +47,7 @@ export default function Agenda({ sesion }: Props) {
     return () => {
       vigente = false;
     };
-  }, [fecha, filtro]);
+  }, [fecha, filtro, version]);
 
   return (
     <div className="agenda" aria-busy={cargando}>
@@ -88,13 +95,33 @@ export default function Agenda({ sesion }: Props) {
         {agenda && <Resumen citas={agenda.citas} />}
       </div>
 
+      {aviso && (
+        <p className="aviso aviso-ok" role="status">
+          {aviso}
+        </p>
+      )}
       {error && (
         <p className="aviso aviso-error" role="alert">
           {error}
         </p>
       )}
       {!agenda && !error && <p className="aviso">Cargando agenda…</p>}
-      {agenda && <Calendario agenda={agenda} esHoy={fecha === hoy()} />}
+      {agenda && <Calendario agenda={agenda} esHoy={fecha === hoy()} onAbrir={(cita, conflicto) => setAbierta({ cita, conflicto })} />}
+
+      {abierta && (
+        <DetalleCita
+          key={abierta.cita.id}
+          cita={abierta.cita}
+          conflicto={abierta.conflicto}
+          profesional={agenda?.profesionales.find((p) => p.id === abierta.cita.profesional_id)?.nombre ?? "—"}
+          rol={sesion.usuario.rol}
+          onCerrar={() => setAbierta(null)}
+          onCambio={(mensaje) => {
+            setAviso(mensaje);
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -114,7 +141,9 @@ function Resumen({ citas }: Readonly<{ citas: CitaVista[] }>) {
   );
 }
 
-function Calendario({ agenda, esHoy }: Readonly<{ agenda: AgendaDia; esHoy: boolean }>) {
+type CalendarioProps = Readonly<{ agenda: AgendaDia; esHoy: boolean; onAbrir: (cita: CitaVista, conflicto: boolean) => void }>;
+
+function Calendario({ agenda, esHoy, onAbrir }: CalendarioProps) {
   const { profesionales, horarios, bloqueos, citas, fecha } = agenda;
   if (profesionales.length === 0) return <p className="aviso">No hay profesionales para mostrar.</p>;
   if (horarios.length === 0) return <p className="aviso">Ningún profesional atiende este día.</p>;
@@ -178,7 +207,7 @@ function Calendario({ agenda, esHoy }: Readonly<{ agenda: AgendaDia; esHoy: bool
                 const conflicto =
                   c.estado === "RESERVADA" &&
                   susBloqueos.some((b) => seSolapan(Date.parse(c.inicio), Date.parse(c.fin), Date.parse(b.inicio), Date.parse(b.fin)));
-                return <BloqueCita key={c.id} cita={c} conflicto={conflicto} ini={enEje(c.inicio)} fin={enEje(c.fin)} />;
+                return <BloqueCita key={c.id} cita={c} conflicto={conflicto} ini={enEje(c.inicio)} fin={enEje(c.fin)} onAbrir={onAbrir} />;
               })}
 
               {esHoy && ahora > desde && ahora < hasta && (
@@ -192,25 +221,33 @@ function Calendario({ agenda, esHoy }: Readonly<{ agenda: AgendaDia; esHoy: bool
   );
 }
 
-type BloqueCitaProps = Readonly<{ cita: CitaVista; conflicto: boolean; ini: number; fin: number }>;
+type BloqueCitaProps = Readonly<{
+  cita: CitaVista;
+  conflicto: boolean;
+  ini: number;
+  fin: number;
+  onAbrir: (cita: CitaVista, conflicto: boolean) => void;
+}>;
 
-function BloqueCita({ cita, conflicto, ini, fin }: BloqueCitaProps) {
+function BloqueCita({ cita, conflicto, ini, fin, onAbrir }: BloqueCitaProps) {
   const etiqueta = conflicto ? "Conflicto" : ESTADO_NOMBRE[cita.estado];
   return (
-    <article
+    <button
+      type="button"
       className="cita"
       data-estado={cita.estado}
       data-conflicto={conflicto || undefined}
       data-corta={fin - ini < 25 || undefined}
       style={posicion(ini, fin - ini)}
-      aria-label={`${hora(cita.inicio)} a ${hora(cita.fin)}, ${cita.paciente}, ${cita.servicio}, ${etiqueta}`}
+      aria-label={`${hora(cita.inicio)} a ${hora(cita.fin)}, ${cita.paciente}, ${cita.servicio}, ${etiqueta}. Abrir detalle`}
+      onClick={() => onAbrir(cita, conflicto)}
     >
-      <p className="cita-linea">
+      <span className="cita-linea">
         <time dateTime={cita.inicio}>{hora(cita.inicio)}</time>
         <strong>{cita.paciente}</strong>
         <span className="cita-estado">{etiqueta}</span>
-      </p>
-      <p className="cita-detalle">{cita.servicio}</p>
-    </article>
+      </span>
+      <span className="cita-detalle">{cita.servicio}</span>
+    </button>
   );
 }

@@ -1,0 +1,165 @@
+/* Ventana de detalle de la cita: <dialog> nativo, centrado por el navegador. */
+.detalle {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgb(15 23 42 / 0.25);
+}
+
+/* Al reprogramar hace falta espacio para la semana de horarios. */
+.detalle[data-modo="reprogramar"] {
+  width: min(980px, calc(100vw - 32px));
+}
+
+.detalle::backdrop {
+  background: rgb(15 23 42 / 0.45);
+}
+
+.detalle[open] {
+  animation: aparecer 200ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.detalle-cuerpo {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+}
+
+.detalle-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.detalle-head h2 {
+  margin-top: var(--space-2);
+  font: 400 var(--step-3) / 1.05 var(--font-display);
+  color: var(--primary);
+}
+
+.estado-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--estado);
+}
+
+.estado-pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--estado);
+}
+
+.datos {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.datos div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: var(--space-2);
+}
+
+.datos dt {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.datos dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.acciones {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.acciones h3 {
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ayuda {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.aviso-conflicto {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+/* Resumen "de dónde a dónde" antes de confirmar el cambio. */
+.mover {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--primary);
+}
+
+.mover span:first-child {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.pie {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--space-3);
+  /* Los márgenes negativos la estiran hasta los bordes del diálogo. */
+  margin: 0 calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.acciones textarea {
+  padding-block: var(--space-2);
+  resize: vertical;
+}

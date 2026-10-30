@@ -95,6 +95,10 @@ export type Cita = {
 
 // ---------- Reglas del dominio que la interfaz también necesita ----------
 
+// Matriz de permisos del enunciado (sección 3). Ocultar un botón es comodidad; la API vuelve a comprobarlo.
+export const ROLES_QUE_AGENDAN: readonly Rol[] = ["ADM_CLINICA", "RECEPCION"]; // reservar, reprogramar, cancelar
+export const ROLES_QUE_REGISTRAN_DESENLACE: readonly Rol[] = ["ADM_CLINICA", "RECEPCION", "PROFESIONAL"];
+
 export const ESTADO_NOMBRE: Record<EstadoCita, string> = {
   RESERVADA: "Reservada",
   ATENDIDA: "Atendida",

@@ -1,0 +1,269 @@
+/* Dos columnas en escritorio: los pasos 1-2 a la izquierda y el resumen fijo a la derecha. */
+.reservar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.reservar-pasos {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.paso {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.paso-head {
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+}
+
+.paso-num {
+  font: 400 var(--step-3) / 1 var(--font-display);
+  color: var(--primary-2);
+}
+
+.paso-head h2 {
+  font: 400 var(--step-2) / 1.1 var(--font-display);
+  color: var(--primary);
+}
+
+.paso-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+/* ---------- Paso 1: servicios ---------- */
+
+.servicios {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.servicio-grupo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.servicio-grupo legend {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.opcion {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.opcion-nombre {
+  font-weight: 500;
+}
+
+.opcion-meta {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* Elegido: la píldora se invierte a azul marino. */
+.opcion:has(input:checked) {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--surface);
+}
+
+.opcion:has(input:checked) .opcion-meta {
+  color: var(--secondary);
+}
+
+.opcion:has(input:focus-visible) {
+  outline: 2px solid var(--primary-2);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .opcion:not(:has(input:checked)):hover {
+    background: var(--secondary);
+    border-color: var(--secondary);
+  }
+}
+
+/* ---------- Paso 3: resumen ---------- */
+
+.reservar-resumen {
+  position: sticky;
+  top: var(--space-5);
+}
+
+.paciente-elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--secondary);
+}
+
+.paciente-elegido div,
+.encontrados button {
+  display: grid;
+  text-align: left;
+}
+
+.paciente-elegido strong {
+  color: var(--primary);
+}
+
+.paciente-elegido span,
+.encontrados span {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.buscador {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.encontrados {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.encontrados li + li {
+  border-top: 1px solid var(--line);
+}
+
+.encontrados button {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .encontrados button:hover {
+    background: var(--secondary);
+  }
+}
+
+.ticket {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--primary-2);
+  border-radius: var(--radius);
+  animation: entrar 300ms ease-out;
+}
+
+.ticket div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: var(--space-2);
+}
+
+.ticket dt {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.ticket dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.falta {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.desenlace {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  animation: entrar 300ms ease-out;
+}
+
+.desenlace p {
+  margin: 0;
+}
+
+.desenlace-ok {
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.desenlace-tomado {
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.desenlace-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.desenlace-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .reservar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reservar-resumen {
+    position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .paso {
+    padding: var(--space-4);
+  }
+}
