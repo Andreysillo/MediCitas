@@ -1,0 +1,37 @@
+.total {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.total strong {
+  font: 400 var(--step-4) / 1 var(--font-display);
+  color: var(--primary);
+}
+
+.celda-barra {
+  width: 50%;
+  min-width: 140px;
+}
+
+.pista {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* El color sale de --estado, definido por data-estado en la fila (mismos colores que en la agenda). */
+.relleno {
+  height: 100%;
+  min-width: 2px;
+  border-radius: 999px;
+  background: var(--estado);
+  transition: width 300ms ease-out;
+}
+
+code {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 0.9em;
+}

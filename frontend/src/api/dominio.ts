@@ -46,7 +46,8 @@ export type Servicio = {
   activo: boolean;
 };
 
-export type ProfesionalServicio = { clinica_id: Uuid; profesional_id: Uuid; servicio_id: Uuid };
+/** Servicios que un profesional atiende. Se desactiva, no se borra: las citas ya hechas la referencian. */
+export type ProfesionalServicio = { clinica_id: Uuid; profesional_id: Uuid; servicio_id: Uuid; activo: boolean };
 
 export type HorarioAtencion = {
   id: Uuid;

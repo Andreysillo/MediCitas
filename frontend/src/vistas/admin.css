@@ -1,0 +1,232 @@
+/* Estilos comunes de las pantallas de administración: paneles, tablas y pestañas. */
+.vista {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-4);
+}
+
+.barra .btn-cta {
+  margin-left: auto;
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.panel > h2,
+.panel-titulo {
+  font: 400 var(--step-2) / 1.1 var(--font-display);
+  color: var(--primary);
+}
+
+.panel-nota {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* ---------- Tablas ---------- */
+
+.tabla-scroll {
+  overflow-x: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--step-0);
+}
+
+.tabla th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.tabla tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla .acciones-fila {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.tabla select {
+  min-height: 44px;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--surface);
+}
+
+.tenue td,
+.tenue strong {
+  color: var(--ink-soft);
+}
+
+/* ---------- Pestañas ---------- */
+
+.pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pestanas button {
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.pestanas button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--surface);
+}
+
+@media (hover: hover) {
+  .pestanas button[aria-pressed="false"]:hover {
+    background: var(--secondary);
+    color: var(--primary);
+  }
+}
+
+/* ---------- Etiquetas de estado ---------- */
+
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: var(--step--1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.etiqueta[data-tono="ok"] {
+  color: var(--st-atendida);
+}
+
+.etiqueta[data-tono="baja"] {
+  color: var(--st-cancelada);
+}
+
+.etiqueta[data-tono="lectura"] {
+  color: var(--st-reservada);
+}
+
+.etiqueta[data-tono="escritura"] {
+  color: var(--accent);
+}
+
+/* Lista de etiquetas (especialidades). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Lista de casillas (servicios de un profesional). */
+.casillas {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.casillas legend {
+  margin-bottom: var(--space-2);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.casilla input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.casilla span:last-child {
+  margin-left: auto;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.campos-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 560px) {
+  .campos-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .barra .btn-cta {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 860px) {
+  .panel {
+    padding: var(--space-4);
+  }
+}

@@ -1,24 +1,38 @@
-import { useEffect, useState, type ComponentType } from "react";
-import { iniciarSesion, usuariosDePrueba, type Sesion } from "./api";
+import { useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
+import { iniciarSesion, suscribirUsuarios, usuariosDePrueba, versionDeUsuarios, type Sesion } from "./api";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
 import { navegar, useRuta } from "./router";
 import Agenda from "./vistas/Agenda";
+import Bitacora from "./vistas/Bitacora";
+import Catalogo from "./vistas/Catalogo";
+import Clinicas from "./vistas/Clinicas";
+import Horarios from "./vistas/Horarios";
 import Pacientes from "./vistas/Pacientes";
+import Reportes from "./vistas/Reportes";
 import Reservar from "./vistas/Reservar";
+import Usuarios from "./vistas/Usuarios";
 
 // Vista de cada ruta. Las que aún no existen muestran el aviso de "próximamente".
 const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
   "/agenda": Agenda,
   "/reservar": Reservar,
   "/pacientes": Pacientes,
+  "/horarios": Horarios,
+  "/catalogo": Catalogo,
+  "/usuarios": Usuarios,
+  "/reportes": Reportes,
+  "/bitacora": Bitacora,
+  "/clinicas": Clinicas,
 };
 
-const GRUPOS = usuariosDePrueba();
-const RECEPCION_INICIAL = GRUPOS[1].usuarios.find((u) => u.rol === "RECEPCION")!;
+const RECEPCION_INICIAL = usuariosDePrueba()[1].usuarios.find((u) => u.rol === "RECEPCION")!;
 
 export default function App() {
   // Provisional: se elige el usuario a mano hasta conectar Keycloak, que traerá clínica y rol en el token.
   const [sesion, setSesion] = useState(() => iniciarSesion(RECEPCION_INICIAL.id));
+  // El selector se vuelve a armar cuando se crean o dan de baja usuarios o clínicas.
+  useSyncExternalStore(suscribirUsuarios, versionDeUsuarios);
+  const grupos = usuariosDePrueba();
   const rol = sesion.usuario.rol;
   const ruta = useRuta();
   const rutas = rutasDe(rol);
@@ -52,7 +66,7 @@ export default function App() {
           </div>
           <label htmlFor="usuario">Ver como</label>
           <select id="usuario" value={sesion.usuario.id} onChange={(e) => setSesion(iniciarSesion(e.target.value))}>
-            {GRUPOS.map((g) => (
+            {grupos.map((g) => (
               <optgroup key={g.etiqueta} label={g.etiqueta}>
                 {g.usuarios.map((u) => (
                   <option key={u.id} value={u.id}>

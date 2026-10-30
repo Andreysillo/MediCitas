@@ -225,7 +225,7 @@ export function crearSemilla(hoy = new Date()): Datos {
 
       // Solo servicios de su especialidad (regla de RF3/RF4).
       const servicios = serviciosPorEspecialidad.get(esp.id)!;
-      for (const s of servicios) datos.profesionalServicio.push({ clinica_id: cid, profesional_id: prof.id, servicio_id: s.id });
+      for (const s of servicios) datos.profesionalServicio.push({ clinica_id: cid, profesional_id: prof.id, servicio_id: s.id, activo: true });
 
       const jornada = JORNADAS[p.jornada];
       for (const dia_semana of jornada.dias) {
@@ -314,6 +314,39 @@ export function crearSemilla(hoy = new Date()): Datos {
     };
     datos.notas.push(nota);
   }
+
+  // Bitácora: quién escribió y leyó notas y datos de contacto en las últimas semanas. Se ordena por
+  // fecha y recién entonces se numera, igual que haría la secuencia de la base. Solo hasta ahora mismo.
+  const azarAud = mulberry32(4242);
+  const ahora = hoy.getTime();
+  const usuarioDeProfesional = new Map(datos.profesionales.map((p) => [p.id, p.usuario_id]));
+  const citaPorId = new Map(datos.citas.map((c) => [c.id, c]));
+  const crudos: Omit<RegistroAuditoria, "id">[] = [];
+  for (const n of datos.notas) {
+    const cita = citaPorId.get(n.cita_id)!;
+    const profesional = usuarioDeProfesional.get(cita.profesional_id)!;
+    const base = { clinica_id: n.clinica_id, usuario_id: profesional, paciente_id: cita.paciente_id, recurso: "NOTA_CLINICA" as const };
+    crudos.push({ ...base, accion: "ESCRITURA", ocurrido_en: n.creada_en });
+    const relectura = Date.parse(n.creada_en) + Math.floor(azarAud() * 3 * DIA);
+    if (azarAud() < 0.3 && relectura < ahora) crudos.push({ ...base, accion: "LECTURA", ocurrido_en: iso(relectura) });
+  }
+  for (const c of datos.clinicas) {
+    const recepcion = datos.usuarios.find((u) => u.clinica_id === c.id && u.rol === "RECEPCION")!;
+    const delasClinica = datos.pacientes.filter((p) => p.clinica_id === c.id);
+    for (let i = 0; i < 40; i++) {
+      const paciente = delasClinica[Math.floor(azarAud() * delasClinica.length)];
+      crudos.push({
+        clinica_id: c.id,
+        usuario_id: recepcion.id,
+        paciente_id: paciente.id,
+        recurso: "CONTACTO_PACIENTE",
+        accion: azarAud() < 0.25 ? "ESCRITURA" : "LECTURA",
+        ocurrido_en: iso(ahora - Math.floor(azarAud() * 20 * DIA)),
+      });
+    }
+  }
+  crudos.sort((a, b) => Date.parse(a.ocurrido_en) - Date.parse(b.ocurrido_en));
+  datos.auditoria = crudos.map((r, i) => ({ id: i + 1, ...r }));
 
   return datos;
 }

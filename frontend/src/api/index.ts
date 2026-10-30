@@ -10,43 +10,46 @@ import {
   seSolapan,
   type BloqueoAgenda,
   type Cita,
-  type Clinica,
   type EstadoCita,
   type HorarioAtencion,
   type Instante,
   type NotaClinica,
   type Paciente,
-  type Usuario,
 } from "./dominio";
-import { crearSemilla, verificarSemilla } from "./semilla";
+import {
+  ApiError,
+  auditar,
+  citaVista,
+  db,
+  fijarSesion,
+  nombreUsuario,
+  nuevoId,
+  red,
+  sesionDeClinica,
+  sinTildes,
+  type CitaVista,
+  type Sesion,
+} from "./nucleo";
+
+export { ApiError, suscribirUsuarios, versionDeUsuarios, type CitaVista, type Sesion } from "./nucleo";
+export * from "./auditoria";
+export * from "./catalogo";
+export * from "./clinicas";
+export * from "./horarios";
+export * from "./reportes";
+export * from "./usuarios";
 
 // Capa de acceso a datos del frontend. Hoy responde desde memoria; cuando exista
 // el backend, cada función se cambia por un fetch a la API y las vistas no se tocan.
+// Este archivo tiene la agenda, la reserva y los pacientes; el resto vive en módulos
+// aparte (horarios, catálogo, usuarios...) que se reexportan al final.
 
-const db = crearSemilla();
-if (import.meta.env.DEV) verificarSemilla(db);
-
-/** Error con el mismo código HTTP que devolverá la API real (401, 403, 404, 409, 422). */
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    mensaje: string,
-  ) {
-    super(mensaje);
-  }
-}
-
-/** Lo que la API sabrá del usuario a partir de su token de Keycloak. */
-export type Sesion = Readonly<{ usuario: Usuario; clinica: Clinica | null }>;
-
-// Sesión vigente: las funciones de datos sacan de aquí la clínica, igual que la API del token.
-let actual: Sesion | null = null;
-
-/** Usuarios de prueba agrupados por clínica, para el selector "Ver como". */
+/** Usuarios de prueba agrupados por clínica, para el selector "Ver como". Solo los que pueden iniciar sesión. */
 export function usuariosDePrueba() {
-  const grupos = [{ etiqueta: "Plataforma", usuarios: db.usuarios.filter((u) => u.clinica_id === null) }];
+  const activos = db.usuarios.filter((u) => u.activo);
+  const grupos = [{ etiqueta: "Plataforma", usuarios: activos.filter((u) => u.clinica_id === null) }];
   for (const c of db.clinicas) {
-    grupos.push({ etiqueta: c.nombre, usuarios: db.usuarios.filter((u) => u.clinica_id === c.id) });
+    grupos.push({ etiqueta: c.nombre, usuarios: activos.filter((u) => u.clinica_id === c.id) });
   }
   return grupos;
 }
@@ -58,26 +61,11 @@ export function usuariosDePrueba() {
 export function iniciarSesion(usuarioId: string): Sesion {
   const usuario = db.usuarios.find((u) => u.id === usuarioId);
   if (!usuario) throw new Error(`Usuario de prueba inexistente: ${usuarioId}`);
-  actual = { usuario, clinica: db.clinicas.find((c) => c.id === usuario.clinica_id) ?? null };
-  return actual;
+  if (!usuario.activo) throw new ApiError(403, "Tu usuario fue dado de baja");
+  const sesion = { usuario, clinica: db.clinicas.find((c) => c.id === usuario.clinica_id) ?? null };
+  fijarSesion(sesion);
+  return sesion;
 }
-
-// ---------- Utilidades internas ----------
-
-// Simula la latencia de red y devuelve una copia, para que las vistas manejen la carga
-// y no puedan modificar la "base" por accidente.
-const red = <T,>(valor: T) =>
-  new Promise<T>((ok) => setTimeout(() => ok(structuredClone(valor)), 150 + Math.random() * 150));
-
-/** Sesión con clínica. Toda consulta filtra por esta clínica y por ninguna otra (I5). */
-function sesionDeClinica() {
-  if (!actual) throw new ApiError(401, "No hay sesión iniciada");
-  const { usuario, clinica } = actual;
-  if (!clinica) throw new ApiError(403, "Este usuario no pertenece a ninguna clínica");
-  return { usuario, clinica };
-}
-
-const nombreUsuario = (id: string) => db.usuarios.find((u) => u.id === id)?.nombre ?? "—";
 
 // ---------- Profesionales ----------
 
@@ -96,16 +84,6 @@ const profesionalesDe = (clinicaId: string): ProfesionalVista[] =>
 export const listarProfesionales = async () => red(profesionalesDe(sesionDeClinica().clinica.id));
 
 // ---------- Agenda del día (RF20) ----------
-
-/** `tiene_nota` solo es cierto para un profesional: para los demás roles ni siquiera se revela si existe una nota. */
-export type CitaVista = Cita & { paciente: string; servicio: string; tiene_nota: boolean };
-
-const citaVista = (c: Cita): CitaVista => ({
-  ...c,
-  paciente: db.pacientes.find((p) => p.id === c.paciente_id)?.nombre ?? "—",
-  servicio: db.servicios.find((s) => s.id === c.servicio_id)?.nombre ?? "—",
-  tiene_nota: actual?.usuario.rol === "PROFESIONAL" && db.notas.some((n) => n.cita_id === c.id),
-});
 
 export type AgendaDia = {
   fecha: string;
@@ -201,7 +179,7 @@ export async function disponibilidad(
   if (dias < 1 || dias > 31) throw new ApiError(422, "El rango debe ser de 1 a 31 días");
 
   // Solo los profesionales habilitados para ese servicio (profesional_servicio).
-  const habilitados = new Set(db.profesionalServicio.filter((ps) => ps.servicio_id === servicio.id).map((ps) => ps.profesional_id));
+  const habilitados = new Set(db.profesionalServicio.filter((ps) => ps.activo && ps.servicio_id === servicio.id).map((ps) => ps.profesional_id));
   const fechas = Array.from({ length: dias }, (_, i) => sumarDias(desde, i));
   const ahora = Date.now();
 
@@ -229,8 +207,6 @@ export type PacienteResumen = Pick<Paciente, "id" | "nombre" | "identificacion">
 
 const coincide = (p: Paciente, q: string) => sinTildes(p.nombre).includes(q) || p.identificacion.includes(q);
 
-const sinTildes = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
 /**
  * Busca por nombre o identificación. No devuelve teléfono ni correo a propósito:
  * leer datos de contacto se audita (RF18) y para elegir un paciente no hacen falta.
@@ -251,9 +227,6 @@ export async function buscarPacientes(texto: string): Promise<PacienteResumen[]>
 
 /** Lo que envía el cliente. No lleva `fin` ni `clinica_id`: el fin lo fija el servicio (I4) y la clínica la sesión (I5). */
 export type SolicitudReserva = { paciente_id: string; profesional_id: string; servicio_id: string; inicio: Instante };
-
-// randomUUID solo existe en contextos seguros (https o localhost); si se abre por IP, se usa el respaldo.
-const nuevoId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 function insertarCita(sol: SolicitudReserva, fin: number, creada_por: string, clinica_id: string, origen: string | null = null): Cita {
   const cita: Cita = {
@@ -288,7 +261,9 @@ function validarEspacio(clinicaId: string, sol: SolicitudReserva, ignorar?: stri
   if (!paciente || !profesional || !servicio) {
     throw new ApiError(422, "El paciente, el profesional o el servicio no existen en esta clínica");
   }
-  if (!db.profesionalServicio.some((ps) => ps.profesional_id === profesional.id && ps.servicio_id === servicio.id)) {
+  if (!servicio.activo) throw new ApiError(422, "El servicio está desactivado");
+  if (!profesional.activo) throw new ApiError(422, "El profesional no está activo");
+  if (!db.profesionalServicio.some((ps) => ps.activo && ps.profesional_id === profesional.id && ps.servicio_id === servicio.id)) {
     throw new ApiError(422, "El profesional no atiende ese servicio");
   }
 
@@ -428,25 +403,6 @@ export async function reprogramarCita(citaId: string, destino: { profesional_id:
 }
 
 // ---------- Pacientes (RF14) e historial (RF16) ----------
-
-/** Bitácora append-only (RF18). La API no ofrece ninguna función para modificarla ni borrarla (I6). */
-function auditar(
-  usuarioId: string,
-  clinicaId: string,
-  pacienteId: string,
-  accion: "LECTURA" | "ESCRITURA",
-  recurso: "NOTA_CLINICA" | "CONTACTO_PACIENTE" = "CONTACTO_PACIENTE",
-) {
-  db.auditoria.push({
-    id: db.auditoria.length + 1,
-    clinica_id: clinicaId,
-    usuario_id: usuarioId,
-    paciente_id: pacienteId,
-    accion,
-    recurso,
-    ocurrido_en: new Date().toISOString(),
-  });
-}
 
 const LIMITE_LISTA = 50;
 
