@@ -76,6 +76,19 @@ export type Paciente = {
   correo: string;
 };
 
+/**
+ * Nota clínica: el dato más sensible del sistema (RF15). No guarda al autor porque `cita_id`
+ * ya determina al profesional; guardarlo sería una dependencia transitiva (3FN).
+ */
+export type NotaClinica = {
+  id: Uuid;
+  clinica_id: Uuid;
+  cita_id: Uuid; // única: a lo sumo una nota por cita
+  contenido: string;
+  creada_en: Instante;
+  actualizada_en: Instante;
+};
+
 /** Bitácora append-only (RF18, I6): quién leyó o escribió qué dato sensible de qué paciente. */
 export type RegistroAuditoria = {
   id: number;

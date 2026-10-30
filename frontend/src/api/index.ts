@@ -14,6 +14,7 @@ import {
   type EstadoCita,
   type HorarioAtencion,
   type Instante,
+  type NotaClinica,
   type Paciente,
   type Usuario,
 } from "./dominio";
@@ -96,12 +97,14 @@ export const listarProfesionales = async () => red(profesionalesDe(sesionDeClini
 
 // ---------- Agenda del día (RF20) ----------
 
-export type CitaVista = Cita & { paciente: string; servicio: string };
+/** `tiene_nota` solo es cierto para un profesional: para los demás roles ni siquiera se revela si existe una nota. */
+export type CitaVista = Cita & { paciente: string; servicio: string; tiene_nota: boolean };
 
 const citaVista = (c: Cita): CitaVista => ({
   ...c,
   paciente: db.pacientes.find((p) => p.id === c.paciente_id)?.nombre ?? "—",
   servicio: db.servicios.find((s) => s.id === c.servicio_id)?.nombre ?? "—",
+  tiene_nota: actual?.usuario.rol === "PROFESIONAL" && db.notas.some((n) => n.cita_id === c.id),
 });
 
 export type AgendaDia = {
@@ -427,14 +430,20 @@ export async function reprogramarCita(citaId: string, destino: { profesional_id:
 // ---------- Pacientes (RF14) e historial (RF16) ----------
 
 /** Bitácora append-only (RF18). La API no ofrece ninguna función para modificarla ni borrarla (I6). */
-function auditar(usuarioId: string, clinicaId: string, pacienteId: string, accion: "LECTURA" | "ESCRITURA") {
+function auditar(
+  usuarioId: string,
+  clinicaId: string,
+  pacienteId: string,
+  accion: "LECTURA" | "ESCRITURA",
+  recurso: "NOTA_CLINICA" | "CONTACTO_PACIENTE" = "CONTACTO_PACIENTE",
+) {
   db.auditoria.push({
     id: db.auditoria.length + 1,
     clinica_id: clinicaId,
     usuario_id: usuarioId,
     paciente_id: pacienteId,
     accion,
-    recurso: "CONTACTO_PACIENTE",
+    recurso,
     ocurrido_en: new Date().toISOString(),
   });
 }
@@ -539,4 +548,52 @@ export async function historialPaciente(id: string): Promise<CitaHistorial[]> {
       .sort((a, b) => Date.parse(b.inicio) - Date.parse(a.inicio))
       .map((c) => ({ ...citaVista(c), profesional: nombreProfesional(c.profesional_id) })),
   );
+}
+
+// ---------- Nota clínica (RF15) ----------
+
+const MAX_NOTA = 5000;
+
+/**
+ * Cita sobre la que el profesional puede trabajar su nota. Solo el profesional que atendió
+ * la cita llega aquí: `buscarCita` responde 404 si la cita es de otro profesional, y el resto
+ * de los roles reciben 403. Ni recepción ni el administrador de clínica acceden a las notas.
+ */
+function citaConNota(citaId: string) {
+  const { cita, usuario, clinica } = buscarCita(citaId);
+  if (usuario.rol !== "PROFESIONAL") throw new ApiError(403, "Solo el profesional que atendió la cita accede a su nota clínica");
+  return { cita, usuario, clinica };
+}
+
+/** Lee la nota de una cita. Cada lectura queda en la bitácora (RF18). */
+export async function obtenerNota(citaId: string): Promise<NotaClinica> {
+  const { cita, usuario, clinica } = citaConNota(citaId);
+  const nota = db.notas.find((n) => n.cita_id === cita.id);
+  if (!nota) throw new ApiError(404, "Esta cita todavía no tiene nota");
+  auditar(usuario.id, clinica.id, cita.paciente_id, "LECTURA", "NOTA_CLINICA");
+  return red(nota);
+}
+
+/**
+ * Crea la nota de la cita o reemplaza su contenido si ya existía (una nota por cita).
+ * Solo sobre citas ATENDIDAS: antes de eso no hay nada que anotar.
+ */
+export async function guardarNota(citaId: string, contenido: string): Promise<NotaClinica> {
+  const { cita, usuario, clinica } = citaConNota(citaId);
+  if (cita.estado !== "ATENDIDA") throw new ApiError(409, "Solo se escribe una nota sobre una cita atendida");
+  const texto = contenido.trim();
+  if (!texto) throw new ApiError(422, "La nota no puede estar vacía");
+  if (texto.length > MAX_NOTA) throw new ApiError(422, `La nota no puede pasar de ${MAX_NOTA} caracteres`);
+
+  const ahora = new Date().toISOString();
+  let nota = db.notas.find((n) => n.cita_id === cita.id);
+  if (nota) {
+    nota.contenido = texto;
+    nota.actualizada_en = ahora;
+  } else {
+    nota = { id: nuevoId(), clinica_id: clinica.id, cita_id: cita.id, contenido: texto, creada_en: ahora, actualizada_en: ahora };
+    db.notas.push(nota);
+  }
+  auditar(usuario.id, clinica.id, cita.paciente_id, "ESCRITURA", "NOTA_CLINICA");
+  return red(nota);
 }

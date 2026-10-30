@@ -7,6 +7,7 @@ import {
   type EstadoCita,
   type Especialidad,
   type HorarioAtencion,
+  type NotaClinica,
   type Paciente,
   type Profesional,
   type ProfesionalServicio,
@@ -31,6 +32,7 @@ export type Datos = {
   pacientes: Paciente[];
   citas: Cita[];
   auditoria: RegistroAuditoria[];
+  notas: NotaClinica[];
 };
 
 type Jornada = "completa" | "manana" | "tarde";
@@ -108,6 +110,16 @@ const NOMBRES = ["Ana", "Luis", "María", "José", "Lucía", "Javier", "Camila",
 const APELLIDOS = ["Alvarado", "Brenes", "Calderón", "Esquivel", "Fallas", "Granados", "Hidalgo", "Leiva", "Madrigal", "Mora", "Murillo", "Obando", "Picado", "Ramírez", "Salazar", "Ugalde", "Villalobos", "Zúñiga"];
 const MOTIVOS_CANCELACION = ["El paciente avisó que no puede asistir", "Cambio de planes del paciente", "Enfermedad del paciente", "Solicitud por teléfono"];
 
+// Notas ficticias y genéricas, solo para que la semilla tenga datos que mostrar.
+const NOTAS_EJEMPLO = [
+  "Refiere cefalea de tres días sin fiebre. Examen físico sin hallazgos. Se indica reposo e hidratación; control si persiste.",
+  "Control de rutina. Signos vitales dentro de parámetros normales. Se mantiene el plan actual.",
+  "Dolor lumbar tras esfuerzo. Sin déficit neurológico. Se indica analgesia y ejercicios de movilidad.",
+  "Evolución favorable respecto a la consulta anterior. Se programa nueva valoración en cuatro semanas.",
+  "Tos seca de una semana. Auscultación limpia. Tratamiento sintomático y signos de alarma explicados.",
+  "Se explica el plan de tratamiento y el paciente lo comprende. Se entregan indicaciones por escrito.",
+];
+
 const MIN = 60_000;
 const DIA = 24 * 60 * MIN;
 
@@ -146,7 +158,7 @@ export function crearSemilla(hoy = new Date()): Datos {
 
   const datos: Datos = {
     clinicas: [], especialidades: [], usuarios: [], profesionales: [], servicios: [],
-    profesionalServicio: [], horarios: [], bloqueos: [], pacientes: [], citas: [], auditoria: [],
+    profesionalServicio: [], horarios: [], bloqueos: [], pacientes: [], citas: [], auditoria: [], notas: [],
   };
 
   const usuario = (clinica_id: string | null, rol: Rol, nombre: string) => {
@@ -287,6 +299,22 @@ export function crearSemilla(hoy = new Date()): Datos {
     });
   }
 
+  // Notas en una pasada aparte y con su propio generador, para no alterar los datos que ya genera la semilla.
+  const azarNotas = mulberry32(777);
+  for (const c of datos.citas) {
+    if (c.estado !== "ATENDIDA" || azarNotas() > 0.35) continue;
+    const fin = Date.parse(c.fin);
+    const nota: NotaClinica = {
+      id: uuid(),
+      clinica_id: c.clinica_id,
+      cita_id: c.id,
+      contenido: NOTAS_EJEMPLO[Math.floor(azarNotas() * NOTAS_EJEMPLO.length)],
+      creada_en: iso(fin + 10 * MIN),
+      actualizada_en: iso(fin + 10 * MIN),
+    };
+    datos.notas.push(nota);
+  }
+
   return datos;
 }
 
@@ -305,5 +333,8 @@ export function verificarSemilla(d: Datos) {
       clave(a) === clave(b) && seSolapan(Date.parse(a.inicio), Date.parse(a.fin), Date.parse(b.inicio), Date.parse(b.fin))));
   console.assert(!choca((c) => c.profesional_id), "Semilla viola I1: profesional con citas solapadas");
   console.assert(!choca((c) => c.paciente_id), "Semilla viola I2: paciente con citas solapadas");
+  const atendidas = new Set(d.citas.filter((c) => c.estado === "ATENDIDA").map((c) => c.id));
+  console.assert(d.notas.every((n) => atendidas.has(n.cita_id)), "Semilla viola RF15: hay una nota sobre una cita no atendida");
+  console.assert(new Set(d.notas.map((n) => n.cita_id)).size === d.notas.length, "Semilla viola la unicidad de nota por cita");
   console.assert(d.clinicas.length >= 3, "La semilla debe tener al menos tres clínicas");
 }

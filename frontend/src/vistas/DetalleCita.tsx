@@ -3,6 +3,7 @@ import { ApiError, cancelarCita, registrarDesenlace, reprogramarCita, simularRes
 import { ESTADO_NOMBRE, ROLES_QUE_AGENDAN, ROLES_QUE_REGISTRAN_DESENLACE, type Rol } from "../api/dominio";
 import Espacios, { type Espacio } from "../componentes/Espacios";
 import { fechaCorta, fechaLocal, hora } from "../fechas";
+import EditorNota from "./EditorNota";
 import "./detalle.css";
 
 type Modo = "detalle" | "cancelar" | "reprogramar";
@@ -29,6 +30,8 @@ export default function DetalleCita({ cita, profesional, conflicto, rol, onCerra
   const [version, setVersion] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
+  // Estado que se muestra: cambia al marcar la cita como atendida sin cerrar la ventana (ver `marcar`).
+  const [estado, setEstado] = useState(cita.estado);
 
   // <dialog> nativo: el navegador atrapa el foco, cierra con Escape y devuelve el foco
   // al botón que lo abrió. Por eso no hace falta ninguna librería de modales.
@@ -36,19 +39,19 @@ export default function DetalleCita({ cita, profesional, conflicto, rol, onCerra
     if (!ref.current?.open) ref.current?.showModal();
   }, []);
 
-  const reservada = cita.estado === "RESERVADA";
+  const reservada = estado === "RESERVADA";
   const puedeAgendar = ROLES_QUE_AGENDAN.includes(rol);
   const puedeDesenlace = ROLES_QUE_REGISTRAN_DESENLACE.includes(rol);
   const yaEmpezo = Date.parse(cita.inicio) <= Date.now(); // RF12
   const duracion = (Date.parse(cita.fin) - Date.parse(cita.inicio)) / 60_000;
 
-  async function ejecutar(accion: () => Promise<unknown>, mensaje: string) {
+  async function ejecutar(accion: () => Promise<unknown>, mensaje: string, cerrar = true) {
     setEnviando(true);
     setError("");
     try {
       await accion();
       onCambio(mensaje);
-      ref.current?.close();
+      if (cerrar) ref.current?.close();
     } catch (e) {
       const base = e instanceof Error ? e.message : "Error inesperado";
       // Si la reprogramación falla no se tocó nada: la cita original sigue como estaba.
@@ -74,16 +77,25 @@ export default function DetalleCita({ cita, profesional, conflicto, rol, onCerra
     );
   }
 
+  // Si el profesional marca la cita como atendida, la ventana sigue abierta: lo siguiente que
+  // querrá hacer es escribir la nota clínica de esa cita (RF15).
   const marcar = (desenlace: "ATENDIDA" | "AUSENTE") =>
-    ejecutar(() => registrarDesenlace(cita.id, desenlace), `Cita de ${cita.paciente} marcada como ${ESTADO_NOMBRE[desenlace].toLowerCase()}.`);
+    ejecutar(
+      async () => {
+        await registrarDesenlace(cita.id, desenlace);
+        setEstado(desenlace);
+      },
+      `Cita de ${cita.paciente} marcada como ${ESTADO_NOMBRE[desenlace].toLowerCase()}.`,
+      !(desenlace === "ATENDIDA" && rol === "PROFESIONAL"),
+    );
 
   return (
     <dialog ref={ref} className="detalle" data-modo={modo} aria-labelledby="detalle-titulo" onClose={onCerrar}>
       <div className="detalle-cuerpo">
         <header className="detalle-head">
           <div>
-            <span className="estado-pill" data-estado={cita.estado}>
-              {ESTADO_NOMBRE[cita.estado]}
+            <span className="estado-pill" data-estado={estado}>
+              {ESTADO_NOMBRE[estado]}
             </span>
             <h2 id="detalle-titulo">{cita.paciente}</h2>
           </div>
@@ -147,7 +159,15 @@ export default function DetalleCita({ cita, profesional, conflicto, rol, onCerra
               )}
             </>
           ) : (
-            <p className="ayuda">Estado final: la cita ya no admite cambios (RF13).</p>
+            <>
+              <p className="ayuda">Estado final: la cita ya no admite cambios (RF13).</p>
+              {estado === "ATENDIDA" && rol === "PROFESIONAL" && (
+                <EditorNota citaId={cita.id} tieneNota={cita.tiene_nota} onGuardada={() => onCambio("Nota clínica guardada.")} />
+              )}
+              {estado === "ATENDIDA" && rol !== "PROFESIONAL" && (
+                <p className="ayuda">La nota clínica solo la ve y la escribe el profesional que atendió la cita.</p>
+              )}
+            </>
           ))}
 
         {modo === "cancelar" && (
