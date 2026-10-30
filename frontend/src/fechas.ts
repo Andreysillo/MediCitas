@@ -40,3 +40,17 @@ const FMT_FECHA_CORTA = new Intl.DateTimeFormat("es-CR", { weekday: "short", day
 
 /** "jue, 22 oct" */
 export const fechaCorta = (fecha: string) => FMT_FECHA_CORTA.format(inicioDelDia(fecha));
+
+const FMT_FECHA_COMPLETA = new Intl.DateTimeFormat("es-CR", { day: "numeric", month: "long", year: "numeric" });
+
+/** "17 de mayo de 1990" */
+export const fechaCompleta = (fecha: string) => FMT_FECHA_COMPLETA.format(inicioDelDia(fecha));
+
+/** Años cumplidos a la fecha de hoy. */
+export const edad = (nacimiento: string) => {
+  const n = inicioDelDia(nacimiento);
+  const h = new Date();
+  // Si este año todavía no cumple años, se resta uno.
+  const aunNoCumple = h.getMonth() < n.getMonth() || (h.getMonth() === n.getMonth() && h.getDate() < n.getDate());
+  return h.getFullYear() - n.getFullYear() - (aunNoCumple ? 1 : 0);
+};

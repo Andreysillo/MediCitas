@@ -1,8 +1,9 @@
-import { diaSemanaIso, fechaLocal, inicioDelDia, sumarDias } from "../fechas";
+import { diaSemanaIso, fechaLocal, hoy, inicioDelDia, sumarDias } from "../fechas";
 import { espaciosLibres, instanteEn } from "./disponibilidad";
 import {
   ESTADO_NOMBRE,
   ROLES_QUE_AGENDAN,
+  ROLES_QUE_EDITAN_PACIENTES,
   ROLES_QUE_REGISTRAN_DESENLACE,
   esVigente,
   puedeTransicionar,
@@ -223,7 +224,9 @@ export async function disponibilidad(
 
 export type PacienteResumen = Pick<Paciente, "id" | "nombre" | "identificacion">;
 
-const sinTildes = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const coincide = (p: Paciente, q: string) => sinTildes(p.nombre).includes(q) || p.identificacion.includes(q);
+
+const sinTildes = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 /**
  * Busca por nombre o identificación. No devuelve teléfono ni correo a propósito:
@@ -235,7 +238,7 @@ export async function buscarPacientes(texto: string): Promise<PacienteResumen[]>
   if (q.length < 2) return [];
   return red(
     db.pacientes
-      .filter((p) => p.clinica_id === clinica.id && (sinTildes(p.nombre).includes(q) || p.identificacion.includes(q)))
+      .filter((p) => p.clinica_id === clinica.id && coincide(p, q))
       .slice(0, 8)
       .map(({ id, nombre, identificacion }) => ({ id, nombre, identificacion })),
   );
@@ -419,4 +422,121 @@ export async function reprogramarCita(citaId: string, destino: { profesional_id:
 
   transicionar(cita, "REPROGRAMADA");
   return red(citaVista(insertarCita(sol, fin, usuario.id, clinica.id, cita.id)));
+}
+
+// ---------- Pacientes (RF14) e historial (RF16) ----------
+
+/** Bitácora append-only (RF18). La API no ofrece ninguna función para modificarla ni borrarla (I6). */
+function auditar(usuarioId: string, clinicaId: string, pacienteId: string, accion: "LECTURA" | "ESCRITURA") {
+  db.auditoria.push({
+    id: db.auditoria.length + 1,
+    clinica_id: clinicaId,
+    usuario_id: usuarioId,
+    paciente_id: pacienteId,
+    accion,
+    recurso: "CONTACTO_PACIENTE",
+    ocurrido_en: new Date().toISOString(),
+  });
+}
+
+const LIMITE_LISTA = 50;
+
+export type PacienteLista = Pick<Paciente, "id" | "nombre" | "identificacion" | "fecha_nacimiento">;
+
+/**
+ * Listado para elegir un paciente. No incluye teléfono ni correo: esos datos solo salen
+ * al abrir la ficha, que es lo que se audita. Devuelve el total para avisar si hay más.
+ */
+export async function listarPacientes(texto = ""): Promise<{ total: number; pacientes: PacienteLista[] }> {
+  const { clinica } = sesionDeClinica();
+  const q = sinTildes(texto.trim());
+  const todos = db.pacientes
+    .filter((p) => p.clinica_id === clinica.id && (q === "" || coincide(p, q)))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return red({
+    total: todos.length,
+    pacientes: todos.slice(0, LIMITE_LISTA).map(({ id, nombre, identificacion, fecha_nacimiento }) => ({ id, nombre, identificacion, fecha_nacimiento })),
+  });
+}
+
+function buscarPaciente(id: string) {
+  const { usuario, clinica } = sesionDeClinica();
+  // Igual que con las citas: un paciente de otra clínica responde como si no existiera (I5).
+  const paciente = db.pacientes.find((p) => p.id === id && p.clinica_id === clinica.id);
+  if (!paciente) throw new ApiError(404, "Paciente no encontrado");
+  return { paciente, usuario, clinica };
+}
+
+/** Ficha completa, con datos de contacto. Cada lectura queda en la bitácora (RF18). */
+export async function obtenerPaciente(id: string): Promise<Paciente> {
+  const { paciente, usuario, clinica } = buscarPaciente(id);
+  auditar(usuario.id, clinica.id, paciente.id, "LECTURA");
+  return red(paciente);
+}
+
+export type DatosPaciente = Omit<Paciente, "id" | "clinica_id">;
+
+/** Valida y normaliza lo que llega del formulario. Aunque el formulario ya valida, la API no confía en él. */
+function validarDatosPaciente(d: DatosPaciente): DatosPaciente {
+  const limpio: DatosPaciente = {
+    identificacion: d.identificacion.trim(),
+    nombre: d.nombre.trim().replace(/\s+/g, " "),
+    fecha_nacimiento: d.fecha_nacimiento,
+    telefono: d.telefono.trim(),
+    correo: d.correo.trim().toLowerCase(),
+  };
+  if (!limpio.identificacion) throw new ApiError(422, "La identificación es obligatoria");
+  if (limpio.nombre.length < 3) throw new ApiError(422, "Escribe el nombre completo");
+  // El viaje de ida y vuelta detecta fechas imposibles como 2026-02-31, que Date acomodaría al mes siguiente.
+  const f = limpio.fecha_nacimiento;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f) || fechaLocal(inicioDelDia(f)) !== f) throw new ApiError(422, "La fecha de nacimiento no es válida");
+  if (f > hoy() || f < "1900-01-01") throw new ApiError(422, "La fecha de nacimiento está fuera de rango");
+  if (limpio.telefono && !/^[+\d][\d\s-]{6,}$/.test(limpio.telefono)) throw new ApiError(422, "El teléfono no es válido");
+  if (limpio.correo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpio.correo)) throw new ApiError(422, "El correo no es válido");
+  return limpio;
+}
+
+/** (clinica_id, identificacion) es única: en la base lo garantiza una restricción UNIQUE. */
+function exigirIdentificacionLibre(clinicaId: string, identificacion: string, propio?: string) {
+  if (db.pacientes.some((p) => p.clinica_id === clinicaId && p.identificacion === identificacion && p.id !== propio)) {
+    throw new ApiError(409, "Ya existe un paciente con esa identificación en la clínica");
+  }
+}
+
+export async function crearPaciente(datos: DatosPaciente): Promise<Paciente> {
+  const { usuario, clinica } = sesionDeClinica();
+  if (!ROLES_QUE_EDITAN_PACIENTES.includes(usuario.rol)) throw new ApiError(403, "Tu rol no puede registrar pacientes");
+  const limpio = validarDatosPaciente(datos);
+  exigirIdentificacionLibre(clinica.id, limpio.identificacion);
+  const paciente: Paciente = { id: nuevoId(), clinica_id: clinica.id, ...limpio };
+  db.pacientes.push(paciente);
+  auditar(usuario.id, clinica.id, paciente.id, "ESCRITURA");
+  return red(paciente);
+}
+
+export async function actualizarPaciente(id: string, datos: DatosPaciente): Promise<Paciente> {
+  const { paciente, usuario, clinica } = buscarPaciente(id);
+  if (!ROLES_QUE_EDITAN_PACIENTES.includes(usuario.rol)) throw new ApiError(403, "Tu rol no puede modificar pacientes");
+  const limpio = validarDatosPaciente(datos);
+  exigirIdentificacionLibre(clinica.id, limpio.identificacion, paciente.id);
+  Object.assign(paciente, limpio);
+  auditar(usuario.id, clinica.id, paciente.id, "ESCRITURA");
+  return red(paciente);
+}
+
+export type CitaHistorial = CitaVista & { profesional: string };
+
+/** Todas las citas del paciente en su clínica, con su estado, de la más reciente a la más antigua (RF16). */
+export async function historialPaciente(id: string): Promise<CitaHistorial[]> {
+  const { paciente } = buscarPaciente(id);
+  const nombreProfesional = (profesionalId: string) => {
+    const p = db.profesionales.find((x) => x.id === profesionalId);
+    return p ? nombreUsuario(p.usuario_id) : "—";
+  };
+  return red(
+    db.citas
+      .filter((c) => c.paciente_id === paciente.id && c.clinica_id === paciente.clinica_id)
+      .sort((a, b) => Date.parse(b.inicio) - Date.parse(a.inicio))
+      .map((c) => ({ ...citaVista(c), profesional: nombreProfesional(c.profesional_id) })),
+  );
 }

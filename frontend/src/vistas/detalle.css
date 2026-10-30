@@ -81,7 +81,7 @@
 
 .datos div {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -93,6 +93,8 @@
 .datos dd {
   margin: 0;
   font-weight: 500;
+  /* Un correo largo se parte en vez de ensanchar la pantalla. */
+  overflow-wrap: anywhere;
 }
 
 .acciones {

@@ -1,0 +1,185 @@
+/* Lista a la izquierda, ficha a la derecha. En pantallas angostas se muestra una a la vez. */
+.pacientes {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.pacientes-lista {
+  display: grid;
+  gap: var(--space-3);
+  position: sticky;
+  top: var(--space-5);
+}
+
+.lista-barra {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.lista {
+  max-height: calc(100dvh - 300px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.lista li + li {
+  border-top: 1px solid var(--line);
+}
+
+.paciente-fila {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.paciente-fila span {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+.paciente-fila[aria-current="true"] {
+  border-left-color: var(--primary-2);
+  background: var(--secondary);
+}
+
+@media (hover: hover) {
+  .paciente-fila:not([aria-current="true"]):hover {
+    background: var(--bg);
+  }
+}
+
+.ficha-col {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ficha {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ficha h3 {
+  margin-bottom: var(--space-3);
+  font-size: var(--step--1);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.ficha-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.ficha-head h2 {
+  font: 400 var(--step-3) / 1.05 var(--font-display);
+  color: var(--primary);
+}
+
+.ficha-head p {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-soft);
+}
+
+.ficha .datos {
+  margin-bottom: var(--space-2);
+}
+
+.ficha .datos a {
+  color: var(--primary-2);
+}
+
+/* Solo en pantallas angostas, donde la lista y la ficha no caben juntas. */
+.ficha .volver {
+  display: none;
+  justify-self: start;
+}
+
+/* ---------- Historial ---------- */
+
+.historial {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historial li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.historial li > div {
+  display: grid;
+  min-width: 0;
+}
+
+.historial li span:not(.estado-pill) {
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+}
+
+/* Las citas que ya no ocupan agenda se ven más tenues, sin esconderlas: el historial las incluye. */
+.historial li[data-estado="CANCELADA"] strong,
+.historial li[data-estado="REPROGRAMADA"] strong {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+
+.estado-pill {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1000px) {
+  .pacientes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pacientes-lista {
+    position: static;
+  }
+
+  .lista {
+    max-height: none;
+  }
+
+  .pacientes[data-vista="detalle"] .pacientes-lista,
+  .pacientes[data-vista="lista"] .ficha-col {
+    display: none;
+  }
+
+  .ficha .volver {
+    display: inline-flex;
+  }
+
+  .ficha {
+    padding: var(--space-4);
+  }
+}

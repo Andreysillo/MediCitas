@@ -10,6 +10,7 @@ import {
   type Paciente,
   type Profesional,
   type ProfesionalServicio,
+  type RegistroAuditoria,
   type Rol,
   type Servicio,
   type Usuario,
@@ -29,6 +30,7 @@ export type Datos = {
   bloqueos: BloqueoAgenda[];
   pacientes: Paciente[];
   citas: Cita[];
+  auditoria: RegistroAuditoria[];
 };
 
 type Jornada = "completa" | "manana" | "tarde";
@@ -144,7 +146,7 @@ export function crearSemilla(hoy = new Date()): Datos {
 
   const datos: Datos = {
     clinicas: [], especialidades: [], usuarios: [], profesionales: [], servicios: [],
-    profesionalServicio: [], horarios: [], bloqueos: [], pacientes: [], citas: [],
+    profesionalServicio: [], horarios: [], bloqueos: [], pacientes: [], citas: [], auditoria: [],
   };
 
   const usuario = (clinica_id: string | null, rol: Rol, nombre: string) => {

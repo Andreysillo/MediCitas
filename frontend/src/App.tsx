@@ -3,12 +3,14 @@ import { iniciarSesion, usuariosDePrueba, type Sesion } from "./api";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
 import { navegar, useRuta } from "./router";
 import Agenda from "./vistas/Agenda";
+import Pacientes from "./vistas/Pacientes";
 import Reservar from "./vistas/Reservar";
 
 // Vista de cada ruta. Las que aún no existen muestran el aviso de "próximamente".
 const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
   "/agenda": Agenda,
   "/reservar": Reservar,
+  "/pacientes": Pacientes,
 };
 
 const GRUPOS = usuariosDePrueba();

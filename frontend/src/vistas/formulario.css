@@ -1,0 +1,16 @@
+/* Reutiliza el diálogo de detalle.css; aquí solo la rejilla de campos. */
+.campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

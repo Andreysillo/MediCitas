@@ -76,6 +76,17 @@ export type Paciente = {
   correo: string;
 };
 
+/** Bitácora append-only (RF18, I6): quién leyó o escribió qué dato sensible de qué paciente. */
+export type RegistroAuditoria = {
+  id: number;
+  clinica_id: Uuid;
+  usuario_id: Uuid;
+  paciente_id: Uuid;
+  accion: "LECTURA" | "ESCRITURA";
+  recurso: "NOTA_CLINICA" | "CONTACTO_PACIENTE";
+  ocurrido_en: Instante;
+};
+
 export type Cita = {
   id: Uuid;
   clinica_id: Uuid;
@@ -97,6 +108,7 @@ export type Cita = {
 
 // Matriz de permisos del enunciado (sección 3). Ocultar un botón es comodidad; la API vuelve a comprobarlo.
 export const ROLES_QUE_AGENDAN: readonly Rol[] = ["ADM_CLINICA", "RECEPCION"]; // reservar, reprogramar, cancelar
+export const ROLES_QUE_EDITAN_PACIENTES: readonly Rol[] = ["ADM_CLINICA", "RECEPCION"]; // el profesional solo lee
 export const ROLES_QUE_REGISTRAN_DESENLACE: readonly Rol[] = ["ADM_CLINICA", "RECEPCION", "PROFESIONAL"];
 
 export const ESTADO_NOMBRE: Record<EstadoCita, string> = {
