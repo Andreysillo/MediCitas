@@ -41,25 +41,39 @@
 }
 
 @media (hover: hover) {
-  .landing .btn-claro:hover {
+  .landing .btn-claro:not(:disabled):hover {
     border-color: var(--on-night);
     background: rgb(255 255 255 / 0.08);
   }
 }
 
+/* Acción principal de la landing: blanca con letras oscuras, en armonía con el fondo noche.
+   Es la excepción al naranja de la app, que aquí competiría con la atmósfera azul. */
+.landing .btn-blanco {
+  --brillo-color: var(--glow);
+  border-color: #ffffff;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .landing .btn-blanco:not(:disabled):hover {
+    border-color: var(--secondary);
+    background: var(--secondary);
+  }
+}
+
 /* Isotipo: cuadro azul con la cruz cian (el mismo del favicon). */
-.l-isotipo,
-.hero-isotipo {
+.l-isotipo {
   display: block;
 }
 
-.l-isotipo rect,
-.hero-isotipo rect {
+.l-isotipo rect {
   fill: var(--primary-2);
 }
 
-.l-isotipo path,
-.hero-isotipo path {
+.l-isotipo path {
   fill: var(--secondary);
 }
 
@@ -118,14 +132,6 @@
   justify-content: center;
   padding-block: var(--space-7);
   text-align: center;
-}
-
-.hero-isotipo {
-  --i: 0;
-  width: clamp(64px, 8vw, 96px);
-  height: clamp(64px, 8vw, 96px);
-  margin-bottom: var(--space-5);
-  filter: drop-shadow(0 12px 40px rgb(37 99 235 / 0.6));
 }
 
 /* El h1 solo da el lienzo: WarpText dibuja "MediCitas" con la fuente del título y lo ajusta al ancho. */

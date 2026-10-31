@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { agendaDelDia, listarProfesionales, type AgendaDia, type CitaVista, type ProfesionalVista, type Sesion } from "../api";
-import { ESTADO_NOMBRE, esVigente, seSolapan, type EstadoCita } from "../api/dominio";
+import { ESTADO_NOMBRE, ROLES_QUE_AGENDAN, esVigente, seSolapan, type EstadoCita } from "../api/dominio";
 import { fechaLarga, hoy, hora, inicioDelDia, minutosHora, sumarDias } from "../fechas";
 import DetalleCita from "./DetalleCita";
 import "./agenda.css";
@@ -83,7 +83,7 @@ export default function Agenda({ sesion }: Props) {
           </label>
         )}
 
-        {!esProfesional && (
+        {ROLES_QUE_AGENDAN.includes(sesion.usuario.rol) && (
           <a className="btn btn-cta" href="#/reservar">
             Reservar cita
           </a>

@@ -1,5 +1,5 @@
 import type { Clinica, Usuario } from "./dominio";
-import { ApiError, db, nuevoId, red, sesionPlataforma, usuariosCambiaron } from "./nucleo";
+import { ApiError, db, nuevoId, red, sesionPlataforma } from "./nucleo";
 
 // Alta de clínicas (RF1). Es lo único que hace el administrador de plataforma: no accede a
 // ningún dato clínico, así que aquí solo salen datos de la clínica misma y cuántos usuarios tiene.
@@ -55,6 +55,5 @@ export async function crearClinica(datos: {
   const admin: Usuario = { id: nuevoId(), clinica_id: clinica.id, rol: "ADM_CLINICA", nombre: adminNombre, activo: true };
   db.clinicas.push(clinica);
   db.usuarios.push(admin);
-  usuariosCambiaron();
   return red({ clinica: { ...clinica, usuarios: 1 }, admin });
 }

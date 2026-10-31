@@ -62,7 +62,7 @@ export default function Clinicas() {
           {(cerrar) => (
             <FormularioClinica
               onCreada={(nombre, admin) => {
-                setAviso(`${nombre} quedó creada con ${admin} como administrador. Ya aparece en "Ver como".`);
+                setAviso(`${nombre} quedó creada con ${admin} como administrador. Ya puede entrar desde "Cambiar de rol".`);
                 clinicas.recargar();
                 cerrar();
               }}

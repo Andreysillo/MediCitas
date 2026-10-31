@@ -118,7 +118,7 @@ export default function Usuarios() {
           {(cerrar) => (
             <FormularioUsuario
               onCreado={(nombre) => {
-                setAviso(`${nombre} quedó registrado. Ya aparece en "Ver como".`);
+                setAviso(`${nombre} quedó registrado. Ya puede entrar desde "Cambiar de rol".`);
                 usuarios.recargar();
                 cerrar();
               }}

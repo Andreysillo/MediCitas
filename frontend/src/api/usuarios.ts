@@ -1,5 +1,5 @@
 import type { Rol, Usuario } from "./dominio";
-import { ApiError, db, nuevoId, red, sesionConRol, usuariosCambiaron } from "./nucleo";
+import { ApiError, db, nuevoId, red, sesionConRol } from "./nucleo";
 
 // Usuarios de la clínica (RF2): alta, baja lógica y asignación de rol. Las credenciales no viven
 // aquí: las administra Keycloak. Este módulo solo guarda quién pertenece a la clínica y con qué rol.
@@ -47,7 +47,6 @@ export async function crearUsuario(datos: { nombre: string; rol: Rol }): Promise
   if (!ROLES_ASIGNABLES.includes(datos.rol)) throw new ApiError(422, "Ese rol no se puede asignar dentro de una clínica");
   const usuario: Usuario = { id: nuevoId(), clinica_id: clinica.id, rol: datos.rol, nombre, activo: true };
   db.usuarios.push(usuario);
-  usuariosCambiaron();
   return red(vista(usuario, yo.id));
 }
 
@@ -60,7 +59,6 @@ export async function cambiarRol(id: string, rol: Rol): Promise<UsuarioVista> {
     throw new ApiError(409, "Es un profesional registrado: no puede cambiar de rol");
   }
   usuario.rol = rol;
-  usuariosCambiaron();
   return red(vista(usuario, yo.id));
 }
 
@@ -86,6 +84,5 @@ export async function cambiarActivo(id: string, activo: boolean): Promise<{ usua
       ).length;
     }
   }
-  usuariosCambiaron();
   return red({ usuario: vista(usuario, yo.id), citas_pendientes });
 }

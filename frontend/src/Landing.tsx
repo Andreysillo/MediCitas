@@ -298,14 +298,13 @@ export default function Landing() {
                 </li>
               ))}
             </ol>
-            <a className="btn btn-cta btn-bloque" href="#/agenda">
+            <a className="btn btn-blanco btn-bloque" href="#/entrar">
               Entrar a la demo
             </a>
           </nav>
         </header>
 
         <div className="hero-cuerpo">
-          <Isotipo className="hero-isotipo entra" />
           <h1 id="l-titulo" className="hero-marca">
             <WarpText
               text="MediCitas"
@@ -321,7 +320,7 @@ export default function Landing() {
             <FoldText text="Tus servicios médicos, a tu alcance." hinge="bottom" stagger={0.025} {...HEREDA} />
           </p>
           <div className="hero-acciones entra" style={orden(4)}>
-            <a className="btn btn-cta" href="#/agenda">
+            <a className="btn btn-blanco" href="#/entrar">
               Probar la demo
             </a>
           </div>
@@ -370,10 +369,10 @@ export default function Landing() {
             <Pliegue texto="Pruébala con" /> <Pliegue texto="datos ficticios." acento />
           </h2>
           <p className="revela">
-            Tres clínicas de ejemplo con sus profesionales y semanas de citas. Cambia de usuario cuando quieras con
-            "Ver como".
+            Tres clínicas de ejemplo con sus profesionales y semanas de citas. Elige con qué rol entrar y cámbialo
+            cuando quieras.
           </p>
-          <a className="btn btn-cta revela" href="#/agenda">
+          <a className="btn btn-blanco revela" href="#/entrar">
             Entrar a la demo
           </a>
         </div>

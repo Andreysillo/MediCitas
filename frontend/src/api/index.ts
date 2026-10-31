@@ -15,6 +15,7 @@ import {
   type Instante,
   type NotaClinica,
   type Paciente,
+  type Usuario,
 } from "./dominio";
 import {
   ApiError,
@@ -31,7 +32,7 @@ import {
   type Sesion,
 } from "./nucleo";
 
-export { ApiError, suscribirUsuarios, versionDeUsuarios, type CitaVista, type Sesion } from "./nucleo";
+export { ApiError, sesionVigente, suscribirSesion, type CitaVista, type Sesion } from "./nucleo";
 export * from "./auditoria";
 export * from "./catalogo";
 export * from "./clinicas";
@@ -44,12 +45,14 @@ export * from "./usuarios";
 // Este archivo tiene la agenda, la reserva y los pacientes; el resto vive en módulos
 // aparte (horarios, catálogo, usuarios...) que se reexportan al final.
 
-/** Usuarios de prueba agrupados por clínica, para el selector "Ver como". Solo los que pueden iniciar sesión. */
+/** Usuarios de prueba agrupados por clínica, para la pantalla de ingreso a la demo. Solo los que pueden iniciar sesión. */
 export function usuariosDePrueba() {
   const activos = db.usuarios.filter((u) => u.activo);
-  const grupos = [{ etiqueta: "Plataforma", usuarios: activos.filter((u) => u.clinica_id === null) }];
+  const grupos: { clinicaId: string | null; etiqueta: string; usuarios: Usuario[] }[] = [
+    { clinicaId: null, etiqueta: "Plataforma MediCitas", usuarios: activos.filter((u) => u.clinica_id === null) },
+  ];
   for (const c of db.clinicas) {
-    grupos.push({ etiqueta: c.nombre, usuarios: activos.filter((u) => u.clinica_id === c.id) });
+    grupos.push({ clinicaId: c.id, etiqueta: c.nombre, usuarios: activos.filter((u) => u.clinica_id === c.id) });
   }
   return grupos;
 }
@@ -65,6 +68,11 @@ export function iniciarSesion(usuarioId: string): Sesion {
   const sesion = { usuario, clinica: db.clinicas.find((c) => c.id === usuario.clinica_id) ?? null };
   fijarSesion(sesion);
   return sesion;
+}
+
+/** Simula el cierre de sesión. Con Keycloak será su logout, que invalida el token. */
+export function cerrarSesion() {
+  fijarSesion(null);
 }
 
 // ---------- Profesionales ----------

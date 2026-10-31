@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
-import { iniciarSesion, suscribirUsuarios, usuariosDePrueba, versionDeUsuarios, type Sesion } from "./api";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
+import type { Sesion } from "./api";
+import Entrar from "./Entrar";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
 import { navegar, useRuta } from "./router";
+import { salir, useSesion } from "./sesion";
 import Agenda from "./vistas/Agenda";
 import Bitacora from "./vistas/Bitacora";
 import Catalogo from "./vistas/Catalogo";
@@ -28,32 +30,35 @@ const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
 // La landing (con GSAP y WebGL) va en su propio archivo: la aplicación no descarga esas librerías.
 const Landing = lazy(() => import("./Landing"));
 
-const RECEPCION_INICIAL = usuariosDePrueba()[1].usuarios.find((u) => u.rol === "RECEPCION")!;
-
-// "#/" (o sin hash) es la landing pública; cualquier otra ruta es la aplicación.
+// "#/" (o sin hash) es la landing pública y "#/entrar" el ingreso. El resto es la aplicación,
+// que exige sesión: sin ella se muestra el ingreso (con Keycloak, la redirección a su login).
 export default function App() {
-  const enLanding = useRuta() === "/";
-  // Al pasar de una a otra se empieza arriba, no a media página.
+  const ruta = useRuta();
+  const sesion = useSesion();
+  let pantalla: "landing" | "entrar" | "app" = "app";
+  if (ruta === "/") pantalla = "landing";
+  else if (ruta === "/entrar" || !sesion) pantalla = "entrar";
+
+  // Al pasar de una pantalla a otra se empieza arriba, no a media página.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [enLanding]);
-  return enLanding ? (
-    <Suspense>
-      <Landing />
-    </Suspense>
-  ) : (
-    <Aplicacion />
-  );
+  }, [pantalla]);
+
+  if (pantalla === "landing") {
+    return (
+      <Suspense>
+        <Landing />
+      </Suspense>
+    );
+  }
+  if (pantalla === "entrar" || !sesion) return <Entrar />;
+  return <Aplicacion sesion={sesion} ruta={ruta} />;
 }
 
-function Aplicacion() {
-  // Provisional: se elige el usuario a mano hasta conectar Keycloak, que traerá clínica y rol en el token.
-  const [sesion, setSesion] = useState(() => iniciarSesion(RECEPCION_INICIAL.id));
-  // El selector se vuelve a armar cuando se crean o dan de baja usuarios o clínicas.
-  useSyncExternalStore(suscribirUsuarios, versionDeUsuarios);
-  const grupos = usuariosDePrueba();
+// La ruta llega desde App y no de un useRuta propio: con dos suscripciones al hash, la de este componente
+// se procesaba primero y su redirección (abajo) devolvía a la agenda antes de que App mostrara /entrar o /.
+function Aplicacion({ sesion, ruta }: Readonly<{ sesion: Sesion; ruta: string }>) {
   const rol = sesion.usuario.rol;
-  const ruta = useRuta();
   const rutas = rutasDe(rol);
   const actual = rutas.find((r) => r.path === ruta);
   const Vista = actual && VISTAS[actual.path];
@@ -81,20 +86,25 @@ function Aplicacion() {
         <div className="session">
           <div className="session-who">
             <strong>{sesion.usuario.nombre}</strong>
+            <span>{ROL_NOMBRE[rol]}</span>
             <span>{sesion.clinica?.nombre ?? "Plataforma MediCitas"}</span>
           </div>
-          <label htmlFor="usuario">Ver como</label>
-          <select id="usuario" value={sesion.usuario.id} onChange={(e) => setSesion(iniciarSesion(e.target.value))}>
-            {grupos.map((g) => (
-              <optgroup key={g.etiqueta} label={g.etiqueta}>
-                {g.usuarios.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.nombre} · {ROL_NOMBRE[u.rol]}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          <div className="session-acciones">
+            <a className="btn" href="#/entrar">
+              Cambiar de rol
+            </a>
+            {/* Primero la ruta y luego la sesión: al redibujar ya se está en la landing, no en el ingreso. */}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                navegar("/");
+                salir();
+              }}
+            >
+              Salir
+            </button>
+          </div>
         </div>
       </aside>
 

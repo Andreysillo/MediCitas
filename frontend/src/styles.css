@@ -115,8 +115,6 @@ a {
   padding: var(--space-6) var(--space-4);
   background: var(--night);
   color: var(--on-night);
-  /* Los controles nativos (el select de "Ver como") también se dibujan oscuros. */
-  color-scheme: dark;
 }
 
 .sidebar :focus-visible {
@@ -198,20 +196,32 @@ a {
   color: var(--on-night);
 }
 
-.session-who span,
-.session label {
+.session-who span {
   color: var(--on-night-soft);
 }
 
-.session select {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding-inline: var(--space-2);
-  border: 1px solid rgb(255 255 255 / 0.16);
-  border-radius: calc(var(--radius) - 4px);
-  background: var(--night-2);
+.session-acciones {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+}
+
+/* Botones sobre la barra oscura: contorno claro, la luz del borde en cian. */
+.session .btn {
+  --brillo-color: var(--glow);
+  padding-inline: var(--space-3);
+  border-color: rgb(255 255 255 / 0.16);
+  background: transparent;
   color: var(--on-night);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .session .btn:not(:disabled):hover {
+    border-color: var(--on-night);
+    background: rgb(255 255 255 / 0.08);
+  }
 }
 
 .main {

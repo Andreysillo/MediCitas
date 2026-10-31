@@ -24,9 +24,19 @@ export type Sesion = Readonly<{ usuario: Usuario; clinica: Clinica | null }>;
 // Sesión vigente: las funciones de datos sacan de aquí la clínica, igual que la API del token.
 let actual: Sesion | null = null;
 
+// Quien dibuja la app se suscribe para enterarse de entrar, salir o cambiar de usuario.
+const oyentesSesion = new Set<() => void>();
+
 export const sesionVigente = () => actual;
-export const fijarSesion = (s: Sesion) => {
+export const fijarSesion = (s: Sesion | null) => {
   actual = s;
+  oyentesSesion.forEach((o) => o());
+};
+export const suscribirSesion = (oyente: () => void) => {
+  oyentesSesion.add(oyente);
+  return () => {
+    oyentesSesion.delete(oyente);
+  };
 };
 
 // Simula la latencia de red y devuelve una copia, para que las vistas manejen la carga
@@ -99,20 +109,3 @@ export function auditar(
     ocurrido_en: new Date().toISOString(),
   });
 }
-
-// Aviso de que la lista de usuarios cambió (alta, baja, rol, clínica nueva): el selector
-// "Ver como" de la barra lateral se suscribe para refrescarse. En la app real no existe.
-const oyentes = new Set<() => void>();
-let versionUsuarios = 0;
-
-export const usuariosCambiaron = () => {
-  versionUsuarios++;
-  oyentes.forEach((o) => o());
-};
-export const suscribirUsuarios = (oyente: () => void) => {
-  oyentes.add(oyente);
-  return () => {
-    oyentes.delete(oyente);
-  };
-};
-export const versionDeUsuarios = () => versionUsuarios;
