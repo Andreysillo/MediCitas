@@ -34,6 +34,7 @@
 /* Botón claro para fondos oscuros: no compite con el naranja de la acción principal.
    Con .landing delante para ganarle a .btn, que se carga después en styles.css. */
 .landing .btn-claro {
+  --brillo-color: #ffffff;
   border-color: rgb(255 255 255 / 0.24);
   background: transparent;
   color: var(--on-night);
@@ -127,57 +128,104 @@
   filter: drop-shadow(0 12px 40px rgb(37 99 235 / 0.6));
 }
 
+/* El h1 solo da el lienzo: WarpText dibuja "MediCitas" con la fuente del título y lo ajusta al ancho. */
 .hero-marca {
-  font-size: clamp(4rem, 14vw, 12rem);
+  width: min(100%, 1120px);
   font-weight: 700;
-  line-height: 0.85;
-  letter-spacing: -0.06em;
 }
 
-.hero-marca span {
-  color: var(--glow);
+.hero-marca .warp-text {
+  height: clamp(130px, 19vw, 280px);
+  min-height: 0;
 }
 
 .hero-eslogan {
-  margin: var(--space-4) 0 0;
+  margin: 0 0 var(--space-6);
   font: 400 clamp(1.75rem, 4vw, 3.25rem) / 1.1 var(--font-accent);
   font-style: italic;
   color: var(--on-night);
 }
 
-.hero-sub {
-  max-width: 44ch;
-  margin: var(--space-4) 0 var(--space-6);
-  font-size: var(--step-1);
-  line-height: 1.55;
-  color: var(--on-night-soft);
-}
-
-.hero-acciones {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
-}
-
 .hero-acciones .btn {
   min-height: 52px;
-  padding-inline: var(--space-5);
+  padding-inline: var(--space-6);
 }
 
-.hero-desliza {
+/* ---------- Menú de secciones (popover nativo, arriba a la derecha) ---------- */
+
+.l-menu {
+  inset: 16px 16px auto auto;
+  width: min(360px, calc(100vw - 32px));
   margin: 0;
-  font: 500 var(--step--1) / 1 var(--font-mono);
-  letter-spacing: 0.06em;
-  text-align: center;
-  text-transform: uppercase;
-  color: var(--on-night-soft);
+  padding: var(--space-5);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 24px;
+  background: rgb(10 20 48 / 0.82);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.7);
+  color: var(--on-night);
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    display 220ms allow-discrete,
+    overlay 220ms allow-discrete;
 }
 
-.hero-desliza::after {
-  content: "↓";
-  display: block;
-  margin-top: var(--space-2);
+/* Entra desde arriba a la derecha; al cerrar recorre el camino inverso. */
+.l-menu:not(:popover-open) {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
+@starting-style {
+  .l-menu:popover-open {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+.l-menu::backdrop {
+  background: rgb(10 20 48 / 0.35);
+}
+
+.l-menu ol {
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.l-menu li + li {
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.l-menu li button {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: none;
+  color: var(--on-night);
+  font: 600 var(--step-2) / 1 var(--font-display);
+  letter-spacing: -0.04em;
+  text-align: left;
+  cursor: pointer;
+  transition: color 200ms var(--ease-out), transform 250ms var(--ease-out);
+}
+
+.l-menu li button span {
+  font: 500 var(--step--1) / 1 var(--font-mono);
+  letter-spacing: 0;
+  color: var(--glow);
+}
+
+@media (hover: hover) {
+  .l-menu li button:hover {
+    color: var(--glow);
+    transform: translateX(6px);
+  }
 }
 
 /* Entrada escalonada del hero: corta, para no retrasar la acción principal. */

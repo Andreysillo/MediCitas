@@ -1,7 +1,6 @@
-import { useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
 import { iniciarSesion, suscribirUsuarios, usuariosDePrueba, versionDeUsuarios, type Sesion } from "./api";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
-import Landing from "./Landing";
 import { navegar, useRuta } from "./router";
 import Agenda from "./vistas/Agenda";
 import Bitacora from "./vistas/Bitacora";
@@ -26,6 +25,9 @@ const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
   "/clinicas": Clinicas,
 };
 
+// La landing (con GSAP y WebGL) va en su propio archivo: la aplicación no descarga esas librerías.
+const Landing = lazy(() => import("./Landing"));
+
 const RECEPCION_INICIAL = usuariosDePrueba()[1].usuarios.find((u) => u.rol === "RECEPCION")!;
 
 // "#/" (o sin hash) es la landing pública; cualquier otra ruta es la aplicación.
@@ -35,7 +37,13 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [enLanding]);
-  return enLanding ? <Landing /> : <Aplicacion />;
+  return enLanding ? (
+    <Suspense>
+      <Landing />
+    </Suspense>
+  ) : (
+    <Aplicacion />
+  );
 }
 
 function Aplicacion() {

@@ -1,8 +1,11 @@
 import { useEffect, useRef, type ComponentType, type CSSProperties } from "react";
+import FoldText from "./componentes/FoldText";
+import WarpText from "./componentes/WarpText";
 import "./landing.css";
 
-// Página pública que presenta MediCitas (producto ficticio del curso). En el hero, un aura de color
-// sigue al cursor; más abajo, cada función es una tarjeta que se apila sobre la anterior al bajar (CSS sticky).
+// Página pública que presenta MediCitas (producto ficticio del curso). En el hero, el nombre se deforma
+// como vidrio bajo el cursor (WarpText) y un aura de color lo sigue; los títulos se despliegan como papel
+// (FoldText) y cada función es una tarjeta que se apila sobre la anterior al bajar (CSS sticky).
 
 /** Turno de entrada en el hero: cada elemento aparece 70 ms después del anterior. */
 const orden = (i: number) => ({ "--i": i }) as CSSProperties;
@@ -228,6 +231,28 @@ const ROLES = [
   { nombre: "Plataforma", texto: "Da de alta clínicas nuevas junto con su primer administrador." },
 ];
 
+const SECCIONES = [
+  { id: "l-inicio", nombre: "Inicio" },
+  { id: "l-funciones", nombre: "Funciones" },
+  { id: "l-roles", nombre: "Para cada rol" },
+  { id: "l-prueba", nombre: "Probar la demo" },
+];
+
+// Las rutas son hash (#/agenda), así que el menú no usa anclas #seccion: cierra el popover y desplaza.
+function irA(id: string) {
+  document.getElementById("l-menu")?.hidePopover();
+  document.getElementById(id)?.scrollIntoView();
+}
+
+/** FoldText toma tamaño y peso del título que lo contiene. */
+const HEREDA = { fontSize: "inherit", fontWeight: "inherit" } as const;
+
+/** Título de sección que se despliega como papel al entrar en pantalla; `acento` es la parte en itálica. */
+function Pliegue({ texto, acento = false }: Readonly<{ texto: string; acento?: boolean }>) {
+  const pliegue = <FoldText text={texto} trigger="scroll" stagger={0.025} {...HEREDA} />;
+  return acento ? <em>{pliegue}</em> : pliegue;
+}
+
 export default function Landing() {
   const aura = useRef<HTMLDivElement>(null);
 
@@ -253,51 +278,61 @@ export default function Landing() {
 
   return (
     <div className="landing">
-      <section className="hero" aria-labelledby="l-titulo">
+      <section id="l-inicio" className="hero" aria-labelledby="l-titulo">
         <div className="hero-aura" ref={aura} aria-hidden="true" />
 
         <header className="l-top">
           <Isotipo className="l-isotipo" />
-          <a className="btn btn-claro" href="#/agenda">
-            Entrar a la demo
-          </a>
+          {/* Menú con popover nativo: el navegador maneja Esc, el clic afuera y aria-expanded. */}
+          <button type="button" className="btn btn-claro" popoverTarget="l-menu">
+            Menú
+          </button>
+          <nav id="l-menu" className="l-menu" popover="auto" aria-label="Secciones de la página">
+            <ol>
+              {SECCIONES.map((s, i) => (
+                <li key={s.id}>
+                  <button type="button" onClick={() => irA(s.id)}>
+                    <span>0{i + 1}</span>
+                    {s.nombre}
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <a className="btn btn-cta btn-bloque" href="#/agenda">
+              Entrar a la demo
+            </a>
+          </nav>
         </header>
 
         <div className="hero-cuerpo">
           <Isotipo className="hero-isotipo entra" />
-          <h1 id="l-titulo" className="hero-marca entra" style={orden(1)}>
-            Medi<span>Citas</span>
+          <h1 id="l-titulo" className="hero-marca">
+            <WarpText
+              text="MediCitas"
+              acento={{ desde: 4, color: "#7dd3fc" }}
+              fontSize="clamp(4rem, 14vw, 12rem)"
+              fontWeight={700}
+              letterSpacing="-0.06em"
+              chromatic={0.35}
+              idleDrift={0.2}
+            />
           </h1>
-          <p className="hero-eslogan entra" style={orden(2)}>
-            Tus servicios médicos, a tu alcance.
-          </p>
-          <p className="hero-sub entra" style={orden(3)}>
-            Agenda, reservas, notas clínicas y bitácora para clínicas que atienden personas.
+          <p className="hero-eslogan">
+            <FoldText text="Tus servicios médicos, a tu alcance." hinge="bottom" stagger={0.025} {...HEREDA} />
           </p>
           <div className="hero-acciones entra" style={orden(4)}>
             <a className="btn btn-cta" href="#/agenda">
               Probar la demo
             </a>
-            <button
-              type="button"
-              className="btn btn-claro"
-              onClick={() => document.getElementById("l-funciones")?.scrollIntoView()}
-            >
-              Ver funciones
-            </button>
           </div>
         </div>
-
-        <p className="hero-desliza" aria-hidden="true">
-          Desliza para ver más
-        </p>
       </section>
 
       <section id="l-funciones" className="vitrina" aria-labelledby="l-func-t">
         <div className="vitrina-cabeza">
           <p className="l-eyebrow">Funciones</p>
-          <h2 id="l-func-t" className="revela">
-            Todo lo que pasa en tu clínica, <em>en un solo lugar.</em>
+          <h2 id="l-func-t">
+            <Pliegue texto="Todo lo que pasa en tu clínica," /> <Pliegue texto="en un solo lugar." acento />
           </h2>
         </div>
         <ol className="escenas">
@@ -314,10 +349,10 @@ export default function Landing() {
         </ol>
       </section>
 
-      <section className="l-seccion" aria-labelledby="l-roles-t">
+      <section id="l-roles" className="l-seccion" aria-labelledby="l-roles-t">
         <p className="l-eyebrow">Para cada rol</p>
-        <h2 id="l-roles-t" className="revela">
-          Una plataforma, <em>cuatro miradas.</em>
+        <h2 id="l-roles-t">
+          <Pliegue texto="Una plataforma," /> <Pliegue texto="cuatro miradas." acento />
         </h2>
         <ul className="roles">
           {ROLES.map((r) => (
@@ -329,10 +364,10 @@ export default function Landing() {
         </ul>
       </section>
 
-      <footer className="cierre">
+      <footer id="l-prueba" className="cierre">
         <div className="cierre-cta">
-          <h2 className="revela">
-            Pruébala con <em>datos ficticios.</em>
+          <h2>
+            <Pliegue texto="Pruébala con" /> <Pliegue texto="datos ficticios." acento />
           </h2>
           <p className="revela">
             Tres clínicas de ejemplo con sus profesionales y semanas de citas. Cambia de usuario cuando quieras con

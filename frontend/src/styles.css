@@ -281,6 +281,57 @@ a {
   transform: scale(0.97);
 }
 
+/* Luz especular en el borde (ver brillo.ts): un anillo con dos lóbulos de luz, el principal hacia el
+   cursor y un reflejo más tenue al lado opuesto. En reposo queda un 35 % encendido arriba a la izquierda. */
+.btn {
+  --brillo: 0;
+  --brillo-angulo: -45deg;
+  --brillo-color: var(--primary-2);
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 0 calc(var(--brillo) * 18px) color-mix(in srgb, var(--brillo-color) calc(var(--brillo) * 30%), transparent);
+}
+
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from calc(var(--brillo-angulo) - 45deg),
+    transparent 0deg,
+    var(--brillo-color) 45deg,
+    transparent 90deg,
+    transparent 180deg,
+    color-mix(in srgb, var(--brillo-color) 45%, transparent) 225deg,
+    transparent 270deg
+  );
+  /* Solo el anillo: se resta el área de contenido al área completa. */
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  opacity: calc(0.35 + 0.65 * var(--brillo));
+  pointer-events: none;
+  transition: opacity 200ms var(--ease-out);
+}
+
+.btn:disabled {
+  box-shadow: none;
+}
+
+.btn:disabled::after {
+  display: none;
+}
+
+.btn-cta {
+  --brillo-color: #fed7aa;
+}
+
+.btn-peligro {
+  --brillo-color: var(--danger);
+}
+
 .btn:disabled {
   color: var(--ink-soft);
   cursor: default;
