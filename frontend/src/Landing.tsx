@@ -1,20 +1,224 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, type ComponentType, type CSSProperties } from "react";
 import "./landing.css";
 
-// Página pública que presenta MediCitas (producto ficticio del curso). Su única idea expresiva:
-// un aura de color que sigue al cursor en el hero. El resto aparece con el scroll, solo con CSS.
+// Página pública que presenta MediCitas (producto ficticio del curso). En el hero, un aura de color
+// sigue al cursor; más abajo, cada función es una tarjeta que se apila sobre la anterior al bajar (CSS sticky).
 
-const PASOS = [
-  { titulo: "Servicio", texto: "Su duración define cuánto espacio ocupa la cita." },
-  { titulo: "Espacio", texto: "Solo se ofrecen horas libres según el horario y los bloqueos del profesional." },
-  { titulo: "Paciente", texto: "Se confirma. Si alguien tomó ese espacio un segundo antes, se avisa y nada se duplica." },
+/** Turno de entrada en el hero: cada elemento aparece 70 ms después del anterior. */
+const orden = (i: number) => ({ "--i": i }) as CSSProperties;
+
+function Isotipo({ className }: Readonly<{ className?: string }>) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="9" />
+      <path d="M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z" />
+    </svg>
+  );
+}
+
+// ---------- Maquetas de cada función (datos ficticios, con los nombres de la demo) ----------
+
+const AGENDA = [
+  { hora: "08:00", paciente: "Ana Granados", servicio: "Consulta general", estado: "ATENDIDA", texto: "Atendida" },
+  { hora: "08:20", paciente: "Tomás Salazar", servicio: "Certificado médico", estado: "ATENDIDA", texto: "Atendida" },
+  { hora: "09:00", paciente: "María Calderón", servicio: "Control de niño sano", estado: "RESERVADA", texto: "Reservada" },
+  { hora: "09:30", paciente: "José Villalobos", servicio: "Limpieza dental", estado: "RESERVADA", texto: "Reservada" },
 ];
 
-const FUNCIONES = [
-  { titulo: "Agenda sin choques", texto: "Dos citas no pueden ocupar el mismo espacio de un profesional. Lo impide la base de datos, no solo la pantalla." },
-  { titulo: "Cada clínica en su casa", texto: "Una sola plataforma, datos separados. Ninguna clínica ve pacientes, citas ni usuarios de otra." },
-  { titulo: "Notas que solo lee quien atiende", texto: "La nota clínica pertenece al profesional. Recepción agenda sin ver diagnósticos." },
-  { titulo: "Bitácora que no se borra", texto: "Quién abrió qué ficha y cuándo. Los registros se agregan; nunca se editan ni se eliminan." },
+function MockAgenda() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Hoy · Clínica San Rafael</span>
+        <span>Dra. Laura Méndez</span>
+      </figcaption>
+      <ol>
+        {AGENDA.map((c) => (
+          <li key={c.hora} data-estado={c.estado}>
+            <time>{c.hora}</time>
+            <span>
+              <strong>{c.paciente}</strong>
+              {c.servicio}
+            </span>
+            <em>{c.texto}</em>
+          </li>
+        ))}
+        <li className="muestra-libre">
+          <time>10:10</time>
+          <span>Espacio libre</span>
+        </li>
+      </ol>
+    </figure>
+  );
+}
+
+const ESPACIOS = [
+  { hora: "08:00", estado: "tomado" },
+  { hora: "08:20", estado: "libre" },
+  { hora: "08:40", estado: "tomado" },
+  { hora: "09:00", estado: "elegido" },
+  { hora: "09:20", estado: "libre" },
+  { hora: "09:40", estado: "libre" },
+  { hora: "10:00", estado: "tomado" },
+  { hora: "10:20", estado: "libre" },
+];
+
+function MockReserva() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Consulta general · 20 min</span>
+        <span>Dr. Carlos Jiménez</span>
+      </figcaption>
+      <ul className="m-espacios">
+        {ESPACIOS.map((e) => (
+          <li key={e.hora} data-estado={e.estado}>
+            {e.hora}
+          </li>
+        ))}
+      </ul>
+      <p className="muestra-nota">Otra persona tomó las 08:40 hace un instante. Elige otro espacio.</p>
+    </figure>
+  );
+}
+
+function MockNota() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Nota clínica · Ana Granados</span>
+        <span>Privada</span>
+      </figcaption>
+      <div className="m-nota">
+        <p>Motivo: control de presión arterial.</p>
+        <p>PA 128/82 mmHg. Sin síntomas nuevos.</p>
+        <p>Plan: continuar tratamiento y control en tres meses.</p>
+      </div>
+      <ul className="m-permisos">
+        <li data-puede="si">Dra. Laura Méndez · lee y edita</li>
+        <li data-puede="no">Recepción · sin acceso</li>
+      </ul>
+    </figure>
+  );
+}
+
+const BITACORA = [
+  { hora: "09:02", quien: "Dra. Laura Méndez", accion: "Editó", recurso: "Nota · Ana Granados" },
+  { hora: "08:57", quien: "Daniela Chaves", accion: "Leyó", recurso: "Ficha · María Calderón" },
+  { hora: "08:41", quien: "Dra. Laura Méndez", accion: "Leyó", recurso: "Nota · Ana Granados" },
+  { hora: "08:15", quien: "Marta Solís", accion: "Leyó", recurso: "Ficha · Tomás Salazar" },
+];
+
+function MockBitacora() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Bitácora · hoy</span>
+        <span>Solo agregar</span>
+      </figcaption>
+      <ol className="m-bitacora">
+        {BITACORA.map((r) => (
+          <li key={r.hora}>
+            <time>{r.hora}</time>
+            <span>
+              <strong>{r.quien}</strong>
+              {r.recurso}
+            </span>
+            <em>{r.accion}</em>
+          </li>
+        ))}
+      </ol>
+    </figure>
+  );
+}
+
+const CLINICAS = [
+  { nombre: "Clínica San Rafael", id: "san-rafael", propia: true },
+  { nombre: "Centro Médico del Valle", id: "del-valle", propia: false },
+  { nombre: "Clínica Los Robles", id: "los-robles", propia: false },
+];
+
+function MockClinicas() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Sesión · Daniela Chaves</span>
+        <span>Recepción</span>
+      </figcaption>
+      <ul className="m-clinicas">
+        {CLINICAS.map((c) => (
+          <li key={c.id} data-propia={c.propia}>
+            <span>
+              <strong>{c.nombre}</strong>
+              {c.id}
+            </span>
+            <em>{c.propia ? "Su clínica" : "Sin acceso"}</em>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+const REPORTE = [
+  { estado: "ATENDIDA", texto: "Atendidas", pct: 64 },
+  { estado: "RESERVADA", texto: "Reservadas", pct: 18 },
+  { estado: "AUSENTE", texto: "Ausentes", pct: 9 },
+  { estado: "CANCELADA", texto: "Canceladas", pct: 6 },
+  { estado: "REPROGRAMADA", texto: "Reprogramadas", pct: 3 },
+];
+
+function MockReporte() {
+  return (
+    <figure className="muestra">
+      <figcaption>
+        <span>Citas por estado</span>
+        <span>Últimos 14 días</span>
+      </figcaption>
+      <ul className="m-reporte">
+        {REPORTE.map((r) => (
+          <li key={r.estado} data-estado={r.estado}>
+            <span>{r.texto}</span>
+            <span className="m-barra" style={{ "--pct": `${r.pct}%` } as CSSProperties} />
+            <time>{r.pct}%</time>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+const FUNCIONES: { titulo: string; texto: string; Mock: ComponentType }[] = [
+  {
+    titulo: "Agenda del día",
+    texto: "Por profesional o de toda la clínica. Cada cita con su estado, de un vistazo.",
+    Mock: MockAgenda,
+  },
+  {
+    titulo: "Reservas sin choques",
+    texto: "Solo se ofrecen horas libres. Si alguien toma el mismo espacio un segundo antes, la base de datos lo impide y se avisa.",
+    Mock: MockReserva,
+  },
+  {
+    titulo: "Notas clínicas privadas",
+    texto: "La nota pertenece a quien atiende. Recepción agenda sin ver diagnósticos.",
+    Mock: MockNota,
+  },
+  {
+    titulo: "Bitácora que no se borra",
+    texto: "Cada lectura y cada cambio de una ficha queda registrado: quién, qué y cuándo. Nada se edita ni se elimina.",
+    Mock: MockBitacora,
+  },
+  {
+    titulo: "Cada clínica en su casa",
+    texto: "Una sola plataforma, datos separados. Ninguna clínica ve pacientes, citas ni usuarios de otra.",
+    Mock: MockClinicas,
+  },
+  {
+    titulo: "Reportes al día",
+    texto: "Citas por estado en cualquier rango de fechas: cuántas se atendieron y cuántas se perdieron.",
+    Mock: MockReporte,
+  },
 ];
 
 const ROLES = [
@@ -23,16 +227,6 @@ const ROLES = [
   { nombre: "Administración", texto: "Horarios, bloqueos, catálogo, usuarios, reportes y bitácora." },
   { nombre: "Plataforma", texto: "Da de alta clínicas nuevas junto con su primer administrador." },
 ];
-
-const MUESTRA = [
-  { hora: "08:00", paciente: "Ana Granados", servicio: "Consulta general", estado: "ATENDIDA", texto: "Atendida" },
-  { hora: "08:20", paciente: "Tomás Salazar", servicio: "Certificado médico", estado: "ATENDIDA", texto: "Atendida" },
-  { hora: "09:00", paciente: "María Calderón", servicio: "Control de niño sano", estado: "RESERVADA", texto: "Reservada" },
-  { hora: "09:30", paciente: "José Villalobos", servicio: "Limpieza dental", estado: "RESERVADA", texto: "Reservada" },
-];
-
-/** Turno de entrada en el hero: cada elemento aparece 70 ms después del anterior. */
-const orden = (i: number) => ({ "--i": i }) as CSSProperties;
 
 export default function Landing() {
   const aura = useRef<HTMLDivElement>(null);
@@ -63,96 +257,61 @@ export default function Landing() {
         <div className="hero-aura" ref={aura} aria-hidden="true" />
 
         <header className="l-top">
-          <span className="l-marca">
-            Medi<span>Citas</span>
-          </span>
+          <Isotipo className="l-isotipo" />
           <a className="btn btn-claro" href="#/agenda">
             Entrar a la demo
           </a>
         </header>
 
         <div className="hero-cuerpo">
-          <div className="hero-texto">
-            <p className="l-eyebrow entra" style={orden(0)}>
-              Agenda clínica para equipos pequeños y medianos
-            </p>
-            <h1 id="l-titulo" className="entra" style={orden(1)}>
-              Cada cita, <em>en su lugar.</em>
-            </h1>
-            <p className="hero-sub entra" style={orden(2)}>
-              MediCitas ordena la agenda de tu clínica: reservas sin choques, notas que solo ve quien atiende y una
-              bitácora que responde quién vio qué.
-            </p>
-            <div className="hero-acciones entra" style={orden(3)}>
-              <a className="btn btn-cta" href="#/agenda">
-                Probar la demo
-              </a>
-              <button
-                type="button"
-                className="btn btn-claro"
-                onClick={() => document.getElementById("l-como")?.scrollIntoView()}
-              >
-                Cómo funciona
-              </button>
-            </div>
+          <Isotipo className="hero-isotipo entra" />
+          <h1 id="l-titulo" className="hero-marca entra" style={orden(1)}>
+            Medi<span>Citas</span>
+          </h1>
+          <p className="hero-eslogan entra" style={orden(2)}>
+            Tus servicios médicos, a tu alcance.
+          </p>
+          <p className="hero-sub entra" style={orden(3)}>
+            Agenda, reservas, notas clínicas y bitácora para clínicas que atienden personas.
+          </p>
+          <div className="hero-acciones entra" style={orden(4)}>
+            <a className="btn btn-cta" href="#/agenda">
+              Probar la demo
+            </a>
+            <button
+              type="button"
+              className="btn btn-claro"
+              onClick={() => document.getElementById("l-funciones")?.scrollIntoView()}
+            >
+              Ver funciones
+            </button>
           </div>
-
-          <figure className="muestra entra" style={orden(2)}>
-            <figcaption>
-              <span>Hoy · Clínica San Rafael</span>
-              <span>Dra. Laura Méndez</span>
-            </figcaption>
-            <ol>
-              {MUESTRA.map((c) => (
-                <li key={c.hora} data-estado={c.estado}>
-                  <time>{c.hora}</time>
-                  <span>
-                    <strong>{c.paciente}</strong>
-                    {c.servicio}
-                  </span>
-                  <em>{c.texto}</em>
-                </li>
-              ))}
-              <li className="muestra-libre">
-                <time>10:10</time>
-                <span>Espacio libre</span>
-              </li>
-            </ol>
-            <p className="muestra-nota">Nota clínica privada · solo la profesional</p>
-          </figure>
         </div>
+
+        <p className="hero-desliza" aria-hidden="true">
+          Desliza para ver más
+        </p>
       </section>
 
-      <section id="l-como" className="l-seccion" aria-labelledby="l-como-t">
-        <p className="l-eyebrow">Cómo funciona</p>
-        <h2 id="l-como-t" className="revela">
-          Reservar toma <em>tres decisiones.</em>
-        </h2>
-        <ol className="pasos">
-          {PASOS.map((p, i) => (
-            <li key={p.titulo} className="revela">
-              <span className="pasos-n">0{i + 1}</span>
-              <h3>{p.titulo}</h3>
-              <p>{p.texto}</p>
+      <section id="l-funciones" className="vitrina" aria-labelledby="l-func-t">
+        <div className="vitrina-cabeza">
+          <p className="l-eyebrow">Funciones</p>
+          <h2 id="l-func-t" className="revela">
+            Todo lo que pasa en tu clínica, <em>en un solo lugar.</em>
+          </h2>
+        </div>
+        <ol className="escenas">
+          {FUNCIONES.map(({ titulo, texto, Mock }, i) => (
+            <li key={titulo} className="escena" style={orden(i)}>
+              <div className="escena-texto">
+                <span className="escena-n">/ 0{i + 1}</span>
+                <h3>{titulo}</h3>
+                <p>{texto}</p>
+              </div>
+              <Mock />
             </li>
           ))}
         </ol>
-      </section>
-
-      <section className="l-seccion" aria-labelledby="l-func-t">
-        <p className="l-eyebrow">Lo esencial</p>
-        <h2 id="l-func-t" className="revela">
-          Lo que una clínica <em>no deja al azar.</em>
-        </h2>
-        <ul className="funciones">
-          {FUNCIONES.map((f, i) => (
-            <li key={f.titulo} className="funcion revela">
-              <span className="funcion-n">/ 0{i + 1}</span>
-              <h3>{f.titulo}</h3>
-              <p>{f.texto}</p>
-            </li>
-          ))}
-        </ul>
       </section>
 
       <section className="l-seccion" aria-labelledby="l-roles-t">
