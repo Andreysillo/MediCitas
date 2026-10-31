@@ -33,7 +33,7 @@
 }
 
 .agenda-titulo h2 {
-  font: 400 var(--step-3) / 1 var(--font-display);
+  font: 600 var(--step-3) / 1 var(--font-display);
   color: var(--primary);
 }
 
@@ -116,6 +116,7 @@
   padding-top: 2px;
   font-size: var(--step--1);
   color: var(--ink-soft);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -228,6 +229,7 @@
 }
 
 .cita-linea time {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }

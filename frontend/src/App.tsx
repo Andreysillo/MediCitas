@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
 import { iniciarSesion, suscribirUsuarios, usuariosDePrueba, versionDeUsuarios, type Sesion } from "./api";
 import { ROL_NOMBRE, rutasDe } from "./navigation";
+import Landing from "./Landing";
 import { navegar, useRuta } from "./router";
 import Agenda from "./vistas/Agenda";
 import Bitacora from "./vistas/Bitacora";
@@ -27,7 +28,17 @@ const VISTAS: Partial<Record<string, ComponentType<{ sesion: Sesion }>>> = {
 
 const RECEPCION_INICIAL = usuariosDePrueba()[1].usuarios.find((u) => u.rol === "RECEPCION")!;
 
+// "#/" (o sin hash) es la landing pública; cualquier otra ruta es la aplicación.
 export default function App() {
+  const enLanding = useRuta() === "/";
+  // Al pasar de una a otra se empieza arriba, no a media página.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [enLanding]);
+  return enLanding ? <Landing /> : <Aplicacion />;
+}
+
+function Aplicacion() {
   // Provisional: se elige el usuario a mano hasta conectar Keycloak, que traerá clínica y rol en el token.
   const [sesion, setSesion] = useState(() => iniciarSesion(RECEPCION_INICIAL.id));
   // El selector se vuelve a armar cuando se crean o dan de baja usuarios o clínicas.
@@ -47,7 +58,7 @@ export default function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <a className="brand" href={`#${rutas[0].path}`}>
+        <a className="brand" href="#/" title="Ir a la página de inicio">
           Medi<span>Citas</span>
         </a>
 

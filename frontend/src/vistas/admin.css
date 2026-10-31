@@ -27,7 +27,7 @@
 
 .panel > h2,
 .panel-titulo {
-  font: 400 var(--step-2) / 1.1 var(--font-display);
+  font: 600 var(--step-2) / 1.1 var(--font-display);
   color: var(--primary);
 }
 
@@ -73,6 +73,7 @@
 
 .tabla .num {
   text-align: right;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 

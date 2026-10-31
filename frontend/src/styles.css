@@ -10,6 +10,13 @@
   --primary-2: #2563eb;
   --secondary: #e0f2fe;
 
+  /* Azul noche: barra lateral y secciones oscuras de la landing. El cian claro es su acento de texto. */
+  --night: #0a1430;
+  --night-2: #13224f;
+  --on-night: #e0f2fe;
+  --on-night-soft: rgb(224 242 254 / 0.68);
+  --glow: #7dd3fc;
+
   /* Naranja oscuro y no #EA580C: con texto blanco este sí pasa el contraste AA (4.5:1). */
   --accent: #c2410c;
   --accent-hover: #9a3412;
@@ -23,8 +30,13 @@
   --st-cancelada: #64748b;
   --st-reprogramada: #7c3aed;
 
-  --font-display: "Instrument Serif", Georgia, serif;
-  --font-ui: "Instrument Sans", system-ui, sans-serif;
+  /* Títulos con carácter, interfaz neutra, monoespaciada para horas e índices y una serif itálica de acento. */
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-ui: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-accent: "Instrument Serif", Georgia, serif;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   --step--1: 0.8125rem;
   --step-0: 0.9375rem;
@@ -41,7 +53,7 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --radius: 10px;
+  --radius: 12px;
   --sidebar: 248px;
 }
 
@@ -63,8 +75,9 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.05;
+  letter-spacing: -0.025em;
 }
 
 button,
@@ -100,19 +113,26 @@ a {
   flex-direction: column;
   gap: var(--space-6);
   padding: var(--space-6) var(--space-4);
-  border-right: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--night);
+  color: var(--on-night);
+  /* Los controles nativos (el select de "Ver como") también se dibujan oscuros. */
+  color-scheme: dark;
+}
+
+.sidebar :focus-visible {
+  outline-color: var(--glow);
 }
 
 .brand {
-  font: 400 var(--step-2) / 1 var(--font-display);
+  font: 600 var(--step-2) / 1 var(--font-display);
+  letter-spacing: -0.03em;
   padding-inline: var(--space-3);
-  color: var(--primary);
+  color: var(--on-night);
   text-decoration: none;
 }
 
 .brand span {
-  color: var(--primary-2);
+  color: var(--glow);
 }
 
 .nav {
@@ -126,21 +146,32 @@ a {
   align-items: center;
   min-height: 44px;
   padding-inline: var(--space-3);
-  border-radius: var(--radius);
-  color: var(--ink-soft);
+  border-radius: 999px;
+  color: var(--on-night-soft);
   text-decoration: none;
-  transition: background-color 150ms ease-out, color 150ms ease-out;
+  transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
 }
 
+/* La página actual: píldora cian con un punto, se lee sin depender del color. */
 .nav a[aria-current="page"] {
-  background: var(--primary);
-  color: var(--surface);
+  background: var(--secondary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.nav a[aria-current="page"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 @media (hover: hover) {
   .nav a:not([aria-current="page"]):hover {
-    background: var(--secondary);
-    color: var(--primary);
+    background: rgb(255 255 255 / 0.08);
+    color: var(--on-night);
   }
 }
 
@@ -149,26 +180,27 @@ a {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: var(--radius);
+  background: rgb(255 255 255 / 0.04);
   font-size: var(--step--1);
 }
 
 .session-who {
   display: grid;
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
 }
 
 .session-who strong {
   font-size: var(--step-0);
   font-weight: 600;
-  color: var(--primary);
+  color: var(--on-night);
 }
 
 .session-who span,
 .session label {
-  color: var(--ink-soft);
+  color: var(--on-night-soft);
 }
 
 .session select {
@@ -176,9 +208,10 @@ a {
   min-width: 0;
   min-height: 44px;
   padding-inline: var(--space-2);
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.16);
   border-radius: calc(var(--radius) - 4px);
-  background: var(--surface);
+  background: var(--night-2);
+  color: var(--on-night);
 }
 
 .main {
@@ -193,9 +226,21 @@ a {
 }
 
 .page-head h1 {
-  font: 400 var(--step-4) / 1 var(--font-display);
-  letter-spacing: -0.02em;
+  font: 600 var(--step-4) / 1 var(--font-display);
+  letter-spacing: -0.04em;
   color: var(--primary);
+}
+
+/* Cada vista entra con un ascenso corto. Solo se anima al montarse (cambio de ruta o de usuario). */
+.main > :last-child {
+  animation: entrar-vista 360ms var(--ease-out) both;
+}
+
+@keyframes entrar-vista {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
 .page-head p {
@@ -205,8 +250,8 @@ a {
 }
 
 .eyebrow {
-  font-size: var(--step--1);
-  letter-spacing: 0.08em;
+  font: 500 var(--step--1) / 1.4 var(--font-mono);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
@@ -222,13 +267,18 @@ a {
   min-width: 44px;
   padding-inline: var(--space-4);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--surface);
   color: var(--primary);
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+/* Respuesta táctil al presionar, también en teléfono. */
+.btn:not(:disabled):active {
+  transform: scale(0.97);
 }
 
 .btn:disabled {
@@ -379,8 +429,6 @@ a {
     height: auto;
     gap: var(--space-4);
     padding: var(--space-4);
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
   }
 
   .nav {

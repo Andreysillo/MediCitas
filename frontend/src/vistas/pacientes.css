@@ -95,7 +95,7 @@
 }
 
 .ficha-head h2 {
-  font: 400 var(--step-3) / 1.05 var(--font-display);
+  font: 600 var(--step-3) / 1.05 var(--font-display);
   color: var(--primary);
 }
 

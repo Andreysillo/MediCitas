@@ -33,6 +33,7 @@
   background: var(--secondary);
   color: var(--primary);
   font-weight: 600;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 

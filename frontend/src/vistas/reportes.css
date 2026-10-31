@@ -4,7 +4,7 @@
 }
 
 .total strong {
-  font: 400 var(--step-4) / 1 var(--font-display);
+  font: 600 var(--step-4) / 1 var(--font-display);
   color: var(--primary);
 }
 

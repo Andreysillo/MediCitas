@@ -1,0 +1,517 @@
+/* Landing pública. Reutiliza los tokens de styles.css; las secciones oscuras usan --night. */
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.landing) {
+    scroll-behavior: smooth;
+  }
+}
+
+.landing {
+  overflow-x: clip;
+}
+
+.landing h1,
+.landing h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.045em;
+}
+
+/* La palabra en itálica serif es el acento editorial de cada título. */
+.landing h1 em,
+.landing h2 em {
+  font-family: var(--font-accent);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.l-eyebrow {
+  margin: 0 0 var(--space-4);
+  font: 500 var(--step--1) / 1.4 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Botón claro para fondos oscuros: no compite con el naranja de la acción principal.
+   Con .landing delante para ganarle a .btn, que se carga después en styles.css. */
+.landing .btn-claro {
+  border-color: rgb(255 255 255 / 0.24);
+  background: transparent;
+  color: var(--on-night);
+}
+
+@media (hover: hover) {
+  .landing .btn-claro:hover {
+    border-color: var(--on-night);
+    background: rgb(255 255 255 / 0.08);
+  }
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: min(100dvh, 920px);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5) clamp(var(--space-4), 5vw, 72px) var(--space-7);
+  color: var(--on-night);
+  /* Atmósfera fija: azul, cian y un rastro del naranja de la marca, más un grano fino. */
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.07'/%3E%3C/svg%3E"),
+    radial-gradient(60% 70% at 12% 0%, rgb(37 99 235 / 0.55), transparent 70%),
+    radial-gradient(50% 60% at 95% 30%, rgb(125 211 252 / 0.28), transparent 70%),
+    radial-gradient(40% 50% at 70% 110%, rgb(194 65 12 / 0.3), transparent 70%),
+    var(--night);
+}
+
+/* Aura que sigue al cursor. Centrada en su propio origen; el JS solo cambia transform. */
+.hero-aura {
+  position: absolute;
+  top: -260px;
+  left: -260px;
+  z-index: -1;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(125 211 252 / 0.32), rgb(37 99 235 / 0.12) 55%, transparent);
+  transform: translate3d(70vw, 40vh, 0);
+  transition: transform 900ms var(--ease-out);
+  pointer-events: none;
+}
+
+.l-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.l-marca {
+  font: 600 var(--step-2) / 1 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.l-marca span {
+  color: var(--glow);
+}
+
+.hero-cuerpo {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: center;
+  gap: clamp(var(--space-6), 5vw, 80px);
+  padding-top: var(--space-7);
+}
+
+.hero .l-eyebrow {
+  color: var(--glow);
+}
+
+.hero h1 {
+  font-size: clamp(3.25rem, 8.5vw, 7.75rem);
+  font-weight: 600;
+  line-height: 0.9;
+}
+
+.hero h1 em {
+  display: block;
+  color: var(--glow);
+}
+
+.hero-sub {
+  max-width: 46ch;
+  margin: var(--space-5) 0 var(--space-6);
+  font-size: var(--step-1);
+  line-height: 1.55;
+  color: var(--on-night-soft);
+}
+
+.hero-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.hero-acciones .btn {
+  min-height: 52px;
+  padding-inline: var(--space-5);
+}
+
+/* Entrada escalonada del hero: corta, para no retrasar la acción principal. */
+.entra {
+  animation: l-subir 480ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 70ms);
+}
+
+@keyframes l-subir {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+/* Vista previa de la agenda: tarjeta de vidrio sobre la atmósfera. */
+.muestra {
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 0.06);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.6);
+}
+
+.muestra figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+  font: 500 var(--step--1) / 1.4 var(--font-mono);
+  color: var(--on-night-soft);
+}
+
+.muestra ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.muestra li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-left: 3px solid var(--tono, var(--glow));
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.07);
+  font-size: var(--step--1);
+  color: var(--on-night-soft);
+}
+
+.muestra li[data-estado="ATENDIDA"] {
+  --tono: #4ade80;
+}
+
+.muestra li[data-estado="RESERVADA"] {
+  --tono: #93c5fd;
+}
+
+.muestra time {
+  font-family: var(--font-mono);
+  color: var(--on-night);
+}
+
+.muestra strong {
+  display: block;
+  font-size: var(--step-0);
+  font-weight: 500;
+  color: var(--on-night);
+}
+
+.muestra li em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--tono);
+}
+
+.muestra li.muestra-libre {
+  grid-template-columns: auto 1fr;
+  border: 1px dashed rgb(255 255 255 / 0.24);
+  background: transparent;
+}
+
+.muestra-nota {
+  margin: var(--space-4) 0 0;
+  font-size: var(--step--1);
+  color: var(--on-night-soft);
+}
+
+.muestra-nota::before {
+  content: "●";
+  margin-right: var(--space-2);
+  color: var(--accent);
+}
+
+/* ---------- Secciones claras ---------- */
+
+.l-seccion {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: clamp(72px, 12vw, 144px) clamp(var(--space-4), 5vw, 72px) 0;
+}
+
+.l-seccion h2 {
+  max-width: 16ch;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: 0.95;
+  color: var(--primary);
+}
+
+.l-seccion h2 em {
+  color: var(--primary-2);
+}
+
+.pasos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin: var(--space-7) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pasos li {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--ink);
+}
+
+.pasos-n {
+  font: 500 var(--step-1) / 1 var(--font-mono);
+  color: var(--accent);
+}
+
+.pasos h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font: 600 var(--step-3) / 1 var(--font-display);
+  letter-spacing: -0.04em;
+  color: var(--primary);
+}
+
+.pasos p {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--ink-soft);
+}
+
+/* Tarjetas que se invierten (claro a oscuro) al pasar el cursor; columnas alternas desfasadas. */
+.funciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin: var(--space-7) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funcion {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+  transition: background-color 300ms var(--ease-out), color 300ms var(--ease-out), border-color 300ms var(--ease-out);
+}
+
+.funcion-n {
+  font: 500 var(--step--1) / 1 var(--font-mono);
+  color: var(--ink-soft);
+}
+
+.funcion h3 {
+  margin-top: auto;
+  font: 600 clamp(1.75rem, 3vw, 2.5rem) / 1 var(--font-display);
+  letter-spacing: -0.04em;
+  color: var(--primary);
+}
+
+.funcion p {
+  margin: var(--space-3) 0 0;
+  max-width: 40ch;
+  color: var(--ink-soft);
+}
+
+@media (min-width: 861px) {
+  .funcion:nth-child(even) {
+    translate: 0 var(--space-7);
+  }
+
+  .funciones {
+    padding-bottom: var(--space-7);
+  }
+}
+
+@media (hover: hover) {
+  .funcion:hover {
+    border-color: var(--night);
+    background: var(--night);
+  }
+
+  .funcion:hover h3 {
+    color: var(--on-night);
+  }
+
+  .funcion:hover p,
+  .funcion:hover .funcion-n {
+    color: var(--on-night-soft);
+  }
+}
+
+/* Lista tipográfica: nombres grandes; con cursor, la fila activa resalta y las demás se apagan. */
+.roles {
+  margin: var(--space-7) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.roles li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+  align-items: center;
+  gap: var(--space-5);
+  padding-block: var(--space-5);
+  border-bottom: 1px solid var(--line);
+  transition: opacity 250ms var(--ease-out);
+}
+
+.rol-nombre {
+  font: 600 clamp(2.5rem, 7vw, 5.5rem) / 1 var(--font-display);
+  letter-spacing: -0.05em;
+  color: var(--primary);
+  transition: transform 300ms var(--ease-out), color 300ms var(--ease-out);
+}
+
+.roles p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+@media (hover: hover) {
+  .roles:hover li:not(:hover) {
+    opacity: 0.35;
+  }
+
+  .roles li:hover .rol-nombre {
+    color: var(--primary-2);
+    transform: translateX(var(--space-4));
+  }
+}
+
+/* ---------- Cierre ---------- */
+
+.cierre {
+  position: relative;
+  overflow: hidden;
+  margin-top: clamp(96px, 14vw, 176px);
+  padding: clamp(72px, 10vw, 128px) clamp(var(--space-4), 5vw, 72px) var(--space-5);
+  color: var(--on-night);
+  background:
+    radial-gradient(60% 80% at 85% 100%, rgb(37 99 235 / 0.45), transparent 70%),
+    radial-gradient(40% 60% at 0% 0%, rgb(125 211 252 / 0.18), transparent 70%),
+    var(--night);
+}
+
+.cierre-cta {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-5);
+  max-width: 1280px;
+  margin-inline: auto;
+}
+
+.cierre h2 {
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: 0.95;
+}
+
+.cierre h2 em {
+  color: var(--glow);
+}
+
+.cierre-cta p {
+  max-width: 48ch;
+  margin: 0;
+  font-size: var(--step-1);
+  color: var(--on-night-soft);
+}
+
+.cierre-cta .btn {
+  min-height: 52px;
+  padding-inline: var(--space-5);
+}
+
+/* La marca a todo el ancho, recortada por abajo, como firma de la página. */
+.cierre-marca {
+  margin: clamp(var(--space-7), 8vw, 96px) 0 0;
+  font: 700 17.5vw / 0.78 var(--font-display);
+  letter-spacing: -0.06em;
+  text-align: center;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(180deg, var(--on-night) 10%, rgb(125 211 252 / 0.15));
+  background-clip: text;
+  user-select: none;
+}
+
+.cierre-legal {
+  position: relative;
+  margin: var(--space-5) 0 0;
+  font: 400 var(--step--1) / 1.4 var(--font-mono);
+  text-align: center;
+  color: var(--on-night-soft);
+}
+
+/* ---------- Aparición con el scroll (CSS nativo; sin soporte, todo se ve desde el inicio) ---------- */
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .revela {
+      animation: l-revelar linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+
+    .cierre-marca {
+      animation: l-firma linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 45%;
+    }
+  }
+}
+
+@keyframes l-revelar {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+
+@keyframes l-firma {
+  from {
+    opacity: 0;
+    transform: translateY(40%);
+  }
+}
+
+/* ---------- Teléfono ---------- */
+
+@media (max-width: 860px) {
+  .hero-cuerpo,
+  .pasos,
+  .funciones,
+  .roles li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero {
+    min-height: auto;
+  }
+
+  .roles li {
+    gap: var(--space-2);
+  }
+
+  .funcion {
+    min-height: 240px;
+  }
+}
