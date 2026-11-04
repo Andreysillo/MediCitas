@@ -1,8 +1,42 @@
 # MediCitas
 
-## Probar el frontend (temporal)
+## Levantar todo
 
-> Instrucciones provisionales mientras no existen el backend ni el `docker compose`. Por ahora el frontend usa datos de prueba en memoria.
+Requisito: Docker con Compose.
+
+```bash
+cp .env.example .env          # y cambiar las contraseñas
+docker compose up -d --build
+docker compose ps             # todo "healthy"; migraciones "Exited (0)"
+```
+
+Abre http://localhost:8080. La documentación de cada API está en `/api/agenda/docs`, `/api/plataforma/docs`
+y `/api/auditoria/docs`.
+
+| Contenedor | Qué hace |
+|---|---|
+| `db` | PostgreSQL 16. Sin puerto publicado |
+| `migraciones` | Aplica el esquema y la semilla nuevos, y termina ([db/](db/README.md)) |
+| `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)) |
+| `web` | El frontend compilado y el gateway hacia las APIs |
+
+- `docker compose logs -f agenda`: logs en JSON de un servicio.
+- `docker compose down`: apaga todo y conserva los datos. `down -v`: también borra la base.
+- `docker compose --profile herramientas up -d`: agrega pgAdmin en http://localhost:5050.
+
+## Estructura
+
+```
+frontend/    React + Vite; en Docker lo sirve nginx
+servicios/   las tres APIs (FastAPI) y su infraestructura común
+db/          migraciones, semilla y pruebas del esquema
+docs/        enunciado y diseño del modelo lógico
+```
+
+## Frontend en modo desarrollo
+
+> El frontend todavía usa datos de prueba en memoria; cada función de `frontend/src/api/` se cambiará por un
+> `fetch` a `/api/<servicio>/...`.
 
 Requisito: Node.js 22 o superior.
 

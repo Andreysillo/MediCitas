@@ -1,60 +1,104 @@
-# Cada bloque bajo "services" es un contenedor que el Compose hace y conecta 
+# MediCitas completo con un solo comando:  cp .env.example .env  &&  docker compose up -d --build
+#
+# Orden de arranque (lo controla depends_on):
+#   db  →  migraciones (aplica el esquema y termina)  →  agenda, plataforma, auditoria  →  web
+# Solo `web` publica un puerto. Las APIs y la base quedan en la red interna del compose; el navegador llega a
+# las APIs a través de web, en /api/<servicio>/.
+name: medicitas
+
+# Lo que comparten los tres servicios de Python. `<<: *api` copia este bloque en cada uno.
+x-api: &api
+  restart: unless-stopped
+  environment:
+    # Hoy los tres usan el mismo usuario de la base. Cuando existan los roles de menor privilegio (T19),
+    # cada servicio recibe aquí el suyo y el código no cambia.
+    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  depends_on:
+    migraciones:
+      condition: service_completed_successfully
+  deploy:
+    resources:
+      limits:
+        memory: 256M
+
 services:
 
-  # aqui se pone el nombre del servicio, este por ejemplo va a salir como db
   db:
-    # Imagen oficial de Postgres desde Docker Hub, no usamos Dockerfile propio
-    image: postgres:16
-    ports:
-      - "5432:5432" # mapea el puerto 5432 del contenedor al mismo puerto en la compu host
-
-    # Si el contenedor se cae o la compu se reinicia, Docker intenta levantarlo de nuevo 
-    restart: always
-
-    # Variables que la imagen oficial de Postgres espera para autoconfigurarse en su primera corrida
-    # no están "quemadas" porque cada una toma su valor del .env real en tiempo de ejecución
+    image: postgres:16.15   # versión exacta: todos prueban sobre el mismo motor
+    restart: unless-stopped
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_DB: ${POSTGRES_DB}
-
-    # aqui hay dos montajes distintos, aunque se parezcan en la sintaxis:
+      # ":?" detiene el compose con un mensaje claro si falta la variable en .env
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
     volumes:
-      # 1) Volumen nombrado mas abajo fuera de "services"
-      #    Docker lo gestiona por su cuenta y persiste aunque se borre el contenedor
-      # Se monta sobre la carpeta donde Postgres realmente escribe sus datos en disco (/var/lib/postgresql/data).
-      - volumen_de_postgres:/var/lib/postgresql/data
-
-
-      # 2) BIND MOUNT de un archivo real de nuestro proyecto (./db/init.sql)
-      #    hacia una carpeta especial que la imagen de Postgres revisa en su
-      #    primer arranque: cualquier .sql o .sh ahí dentro se ejecuta solo,
-      #    una única vez (cuando la base de datos está vacía)
-      #    Esto hace que todas las tablas y demas se hagan automaticamente sin que el evaluador tenga que cargarla a mano.
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
-
+      # Volumen nombrado: los datos sobreviven a `docker compose down` (no a `down -v`).
+      - datos_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
+  # Trabajo de una sola vez: aplica las migraciones nuevas (y la semilla si CARGAR_SEMILLA=si) y termina.
+  # Si una falla, termina con error y las APIs no arrancan sobre un esquema incompleto.
+  migraciones:
+    image: postgres:16.15   # solo se usa su psql
+    command: ["sh", "/db/aplicar.sh"]
+    restart: "no"
+    environment:
+      PGHOST: db
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      CARGAR_SEMILLA: ${CARGAR_SEMILLA:-si}
+    volumes:
+      - ./db:/db:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Persona A: horarios, bloqueos, disponibilidad y ciclo de vida de la cita (RF5–RF13, RF20).
+  agenda:
+    <<: *api
+    build: { context: ./servicios, args: { SERVICIO: agenda } }
+
+  # Persona B: clínicas, usuarios, catálogo, profesionales, pacientes y notas (RF1–RF4, RF14–RF16).
+  plataforma:
+    <<: *api
+    build: { context: ./servicios, args: { SERVICIO: plataforma } }
+
+  # Consulta de la bitácora y reportes (RF19, RF21). Solo lee.
+  auditoria:
+    <<: *api
+    build: { context: ./servicios, args: { SERVICIO: auditoria } }
+
+  # Frontend compilado + gateway hacia las APIs. No espera a las APIs: si una cae, el resto sigue sirviendo.
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${PUERTO_WEB:-8080}:80"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # Opcional, solo para desarrollo:  docker compose --profile herramientas up -d
   pgadmin:
-      image: dpage/pgadmin4:latest
-      container_name: pgadmin
-      restart: always
-      environment:
-        PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-        PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-      ports:
-        - "8080:80"
-      depends_on:
-        db:
-          condition: service_healthy
-      volumes:
-        - pgadmin_data_MediCitas:/var/lib/pgadmin
+    image: dpage/pgadmin4:9.10
+    profiles: [herramientas]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@medicitas.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-cambiar-esto}
+    ports:
+      - "127.0.0.1:5050:80"   # solo desde esta computadora
+    volumes:
+      - datos_pgadmin:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
 
-# Declaración del volumen nombrado que usamos arriba, esto va al mismo nivel que el contenedor de la db
 volumes:
-  volumen_de_postgres:
-  pgadmin_data_MediCitas:
+  datos_postgres:
+  datos_pgadmin:
