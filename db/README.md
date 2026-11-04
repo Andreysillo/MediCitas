@@ -20,33 +20,28 @@ db/
 | `004_citas.sql` | `paciente`, `cita` con las exclusiones de **I1** e **I2**, `nota_clinica` |
 | `005_auditoria.sql` | `registro_auditoria` (solo la tabla; ver "Pendiente") |
 
-Para agregar un cambio de esquema se crea la migración siguiente (`006_...sql`) y se vuelve a correr
-`aplicar.sh`: solo aplica los archivos nuevos.
+Reglas para cambiar el esquema:
+- Un cambio nuevo es **la migración siguiente** (`006_...sql`). Nunca se edita una migración que ya se
+  aplicó en alguna base: no se volvería a correr, y cada base quedaría distinta.
+- Las migraciones solo van hacia adelante. Para deshacer algo se escribe otra migración que lo revierta.
 
 ## Cómo se cargan
 
-`aplicar.sh` anota cada archivo aplicado en la tabla `schema_migrations` y corre cada uno en una sola
-transacción. El compose debe montar dos cosas en el servicio de Postgres:
+El servicio `migraciones` del compose corre `aplicar.sh` en cada `docker compose up`, después de que la
+base está sana y antes de que arranquen las APIs. `aplicar.sh` anota cada archivo aplicado en la tabla
+`schema_migrations` y corre cada uno en una sola transacción: con la base vacía crea todo, y con una base
+existente aplica solo los archivos nuevos. Si uno falla, el servicio termina con error y las APIs no
+arrancan.
 
-```yaml
-volumes:
-  - ./db:/db:ro
-  - ./db/aplicar.sh:/docker-entrypoint-initdb.d/aplicar.sh:ro
-```
+`CARGAR_SEMILLA=no` (en `.env`) aplica solo el esquema, sin datos de prueba. Las fechas de la semilla son
+relativas al momento en que se cargó: para refrescarlas, `docker compose down -v` y volver a levantar.
 
-La imagen oficial ejecuta lo que hay en `docker-entrypoint-initdb.d/` solo en el primer arranque, con la
-base vacía. Las fechas de la semilla son relativas al momento de ese arranque: para refrescarlas,
-`docker compose down -v` y volver a levantar.
+## Pruebas de restricciones
 
-## Probar sin el compose completo
+Arman sus propios datos y los deshacen al final, así que se pueden correr sobre la base con la semilla:
 
 ```bash
-docker run -d --name medicitas-test -e POSTGRES_USER=medicitas -e POSTGRES_PASSWORD=x -e POSTGRES_DB=medicitas \
-  -v "$PWD/db:/db:ro" -v "$PWD/db/aplicar.sh:/docker-entrypoint-initdb.d/aplicar.sh:ro" postgres:16
-
-# Pruebas de restricciones (arman sus propios datos y los deshacen):
-docker cp db/pruebas/restricciones.sql medicitas-test:/tmp/r.sql
-docker exec medicitas-test psql -v ON_ERROR_STOP=1 -U medicitas -d medicitas -f /tmp/r.sql
+docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/pruebas/restricciones.sql
 ```
 
 ## Datos semilla
