@@ -1,6 +1,6 @@
 # Servicio de agenda
 
-Horarios, bloqueos, disponibilidad y la reserva de citas (el resto del ciclo de vida, RF10 a RF13, viene después). Documentación interactiva de las
+Horarios, bloqueos, disponibilidad y el ciclo de vida de la cita. Documentación interactiva de las
 rutas: http://localhost:8080/api/agenda/docs. Pruebas: ver [../README.md](../README.md#pruebas).
 
 ## Rutas
@@ -13,6 +13,9 @@ rutas: http://localhost:8080/api/agenda/docs. Pruebas: ver [../README.md](../REA
 | `GET /profesionales/{id}/disponibilidad?servicio_id=&fecha=` | RF7 | administrador, recepción, profesional |
 | `GET /servicios/{id}/disponibilidad?desde=&dias=` | RF8 | ídem |
 | `POST /citas` | RF9 | administrador de clínica, recepción |
+| `POST /citas/{id}/reprogramar` | RF10 | ídem |
+| `POST /citas/{id}/cancelar` | RF11 | ídem |
+| `POST /citas/{id}/desenlace` | RF12 | administrador de clínica, recepción, profesional |
 
 ## Archivos
 
@@ -20,7 +23,8 @@ rutas: http://localhost:8080/api/agenda/docs. Pruebas: ver [../README.md](../REA
 app/
   main.py            registra los routers
   horarios.py        RF5          bloqueos.py     RF6          disponibilidad.py   RF7 y RF8 (rutas)
-  citas.py           RF9 (ruta)   reserva.py      las reglas de un espacio (las compartirá RF10)
+  citas.py           RF9 a RF13 (rutas y máquina de estados)
+  reserva.py         las reglas de un espacio, compartidas por reservar y reprogramar
   espacios.py        la consulta SQL que calcula los espacios libres (la más ejecutada del sistema)
   conflictos.py      citas que un bloqueo o un cambio de horario deja sin cubrir
   permisos.py        quién puede tocar los horarios de quién + el bloqueo de fila sobre el profesional
@@ -64,6 +68,36 @@ Lo que quedó decidido y por qué:
 Las pruebas de `tests/test_concurrencia.py` lo demuestran con un servidor real y datos confirmados: 8 clientes disputan el
 mismo espacio durante 12 rondas y siempre hay exactamente un 201 y siete 409; un paciente no puede estar en dos consultas a
 la vez; y un bloqueo creado a la vez que una reserva nunca deja una cita dentro del bloqueo sin avisar (ver abajo).
+
+## Ciclo de vida de la cita (RF10 a RF13)
+
+Una cita nace RESERVADA y termina en uno de cuatro estados finales, de los que ya no sale:
+
+```
+              ┌─► ATENDIDA       el paciente vino       (solo después de la hora de inicio)
+              ├─► AUSENTE        no se presentó         (solo después de la hora de inicio)
+RESERVADA ────┤
+              ├─► CANCELADA      queda motivo y responsable; libera el espacio
+              └─► REPROGRAMADA   libera el espacio y nace otra cita RESERVADA que apunta a ésta
+```
+
+**Una cita no se edita.** Reprogramar no le cambia la hora a la fila: la marca REPROGRAMADA y crea otra con `cita_origen_id`. Es
+como tachar una línea en la agenda y escribir otra con una flecha: el historial conserva qué pasó. La nueva cita mantiene el
+paciente, el servicio y la duración de la anterior (I4), aunque el servicio haya cambiado de duración después.
+
+**Reprogramar es todo o nada.** Los dos cambios van en una transacción. Si el espacio nuevo ya está tomado (409), la cita
+original queda RESERVADA, como si nada. Nadie ve nunca la cita duplicada ni los dos espacios ocupados. Primero se libera el
+espacio viejo y después se inserta el nuevo: si no, mover una cita 15 minutos chocaría consigo misma.
+
+**Dos barreras para la máquina de estados.** La API rechaza una transición no permitida con 409 y un mensaje claro
+(`exigir_transicion` en `citas.py`). Además, un trigger del motor (migración 007) impide modificar una cita que ya no está
+RESERVADA, por si algún camino se salta la API.
+
+**Dos operaciones a la vez sobre la misma cita** pasan de una en una, gracias al bloqueo de fila: la segunda lee el estado que
+dejó la primera y recibe 409. El orden de bloqueos es siempre profesional, paciente, cita.
+
+**El desenlace lo registra cualquier profesional de la clínica**, no solo el de la cita: la matriz dice "sí", sin el "solo los
+propios" de otras filas, y no se puede reducir.
 
 ## Reservar y bloquear a la vez (I3)
 

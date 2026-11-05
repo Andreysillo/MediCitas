@@ -130,3 +130,26 @@ def test_un_bloqueo_y_una_reserva_simultaneos_nunca_dejan_una_cita_dentro_del_bl
             assert r_reserva.status_code == 422 and "bloqueo" in r_reserva.json()["detalle"], f"ronda {ronda}: {r_reserva.text}"
             vistas["reserva_rechazada"] += 1
     print("\nDesenlaces de la carrera bloqueo-reserva:", vistas)
+
+
+def test_dos_operaciones_sobre_la_misma_cita_gana_una_RF13(servidor, mundo_real):
+    """Cancelar y reprogramar la misma cita a la vez, o reprogramarla dos veces: solo una operación gana, y la cita
+    queda en un único estado final, con una sola sucesora como máximo."""
+    w = mundo_real
+    horario_todos_los_dias(w, w.prof)
+    for ronda in range(RONDAS):
+        inicio = proximo(4, 8) + timedelta(days=7 * ronda)
+        cita = w.cita(inicio)
+        destino = {"profesional_id": str(w.prof), "inicio": (inicio + timedelta(hours=2)).isoformat()}
+        otro_destino = {"profesional_id": str(w.prof), "inicio": (inicio + timedelta(hours=4)).isoformat()}
+
+        def reprogramar(cuerpo):
+            return lambda c: c.post(f"/citas/{cita}/reprogramar", headers=como(w.recepcion), json=cuerpo)
+
+        cancelar = lambda c: c.post(f"/citas/{cita}/cancelar", headers=como(w.recepcion), json={"motivo": "Prueba"})
+        estados = sorted(r.status_code for r in en_paralelo(servidor, [reprogramar(destino), reprogramar(otro_destino), cancelar]))
+
+        assert estados.count(409) == 2 and estados.count(200) + estados.count(201) == 1, f"ronda {ronda}: {estados}"
+        final = confirmado("SELECT estado FROM cita WHERE id = %s", cita)[0]["estado"]
+        sucesoras = confirmado("SELECT id FROM cita WHERE cita_origen_id = %s", cita)
+        assert (final, len(sucesoras)) in (("CANCELADA", 0), ("REPROGRAMADA", 1)), f"ronda {ronda}: {final}, {len(sucesoras)}"

@@ -68,7 +68,8 @@ y da `mundo.cita(...)` para crear citas.
   paciente). Con eso nunca queda una cita dentro de un bloqueo sin que el sistema lo sepa (I3) y, sobre todo, no hay deadlocks entre reservas que
   disputan el mismo espacio: medido con 8 clientes y bloqueo compartido (`FOR SHARE`), varios abortaban con 40P01,
   porque Postgres inserta la entrada del índice de exclusión antes de revisarla y cada inserción veía la de la otra.
-  La reprogramación (T13) debe respetar el mismo orden; si toma dos profesionales, en orden de `id`.
+  La reprogramación usa el mismo camino: toma al profesional de destino y al paciente, y después la cita. El profesional
+  de origen no hace falta: liberar un espacio no pone en riesgo nada.
 
 ## Agregar una ruta
 

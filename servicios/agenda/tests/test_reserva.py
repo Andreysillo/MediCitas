@@ -155,3 +155,25 @@ def test_la_reserva_desaparece_de_la_disponibilidad_I7(cliente, mundo, con):
     assert reservar(cliente, mundo.recepcion, mundo, proximo(1, 9)).status_code == 201
     despues = cliente.get(f"/profesionales/{mundo.prof}/disponibilidad", headers=como(mundo.recepcion), params=params).json()["espacios"]
     assert len(antes) - len(despues) == 3                         # 08:45, 09:00 y 09:15 dejaron de estar libres
+
+
+def test_valores_extremos_no_tumban_el_servicio(cliente, mundo, con):
+    """Requisito de operación 3: una entrada absurda responde 422, nunca 500."""
+    con_horario(con, mundo)
+    quien = como(mundo.recepcion)
+    base = {"paciente_id": str(mundo.paciente), "profesional_id": str(mundo.prof), "servicio_id": str(mundo.servicio)}
+
+    # Sumarle la duración se sale del calendario de Python.
+    assert cliente.post("/citas", headers=quien, json={**base, "inicio": "9999-12-31T23:59:00+00:00"}).status_code == 422
+    r = cliente.get(f"/servicios/{mundo.servicio}/disponibilidad", headers=quien, params={"desde": "9999-12-25", "dias": 31})
+    assert r.status_code == 422
+    r = cliente.post(f"/profesionales/{mundo.prof}/bloqueos", headers=como(mundo.admin),
+                     json={"inicio": "9999-12-31T22:00:00+00:00", "fin": "9999-12-31T23:00:00-14:00", "motivo": "Prueba"})
+    assert r.status_code == 422
+
+    # PostgreSQL no admite el carácter NUL en un texto.
+    cita = mundo.cita(proximo(1, 9))
+    r = cliente.post(f"/citas/{cita}/cancelar", headers=quien, json={"motivo": "abc\u0000def"})
+    assert r.status_code == 422
+
+    assert cliente.get("/salud").status_code == 200
