@@ -1,7 +1,7 @@
 """RF7 y RF8: espacios disponibles de un profesional en una fecha, y de un servicio en un rango de fechas."""
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -104,7 +104,7 @@ def disponibilidad_de_servicio(
         (sesion.clinica_id, list(por_profesional)),
     ).fetchall()
 
-    fechas = [desde.fromordinal(desde.toordinal() + i) for i in range(dias)]
+    fechas = [desde + timedelta(days=i) for i in range(dias)]
     return [
         {"profesional": p, "dias": [{"fecha": d, "espacios": por_profesional[p["id"]].get(d, [])} for d in fechas]}
         for p in profesionales

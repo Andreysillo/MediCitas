@@ -5,15 +5,16 @@ Se resuelve entera en SQL, en una sola consulta, en tres pasos:
   2. candidatos: dentro de cada bloque, un posible inicio cada PASO_MINUTOS, mientras la cita entera quepa en él (I3).
   3. filtro:     se descarta el candidato que se traslapa con una cita vigente (I1) o con un bloqueo (RF6), y el pasado.
 
-Para saber qué hay ocupado se usa la misma expresión `tstzrange(inicio, fin, '[)')` que las restricciones de exclusión
-de `cita` (db/migrations/004_citas.sql): así el motor puede resolver el traslape con ese índice GiST en vez de
-recorrer todas las citas. El plan de ejecución se documenta en la tarea T15.
+El traslape se escribe con la misma expresión `tstzrange(inicio, fin, '[)')` que las restricciones de exclusión de
+`cita` (db/migrations/004_citas.sql). El plan de ejecución y sus índices son la tarea T15: medido sin ellos, el motor
+recorre toda la tabla `cita`.
 """
 
 from datetime import date, timedelta
 from uuid import UUID
 
-# Cada cuánto puede empezar una cita dentro de un bloque del horario. Lo comparte con la reserva (T12).
+# Cada cuánto puede empezar una cita dentro de un bloque del horario. Solo define lo que se OFRECE: la reserva acepta
+# cualquier minuto exacto que cumpla las reglas.
 PASO_MINUTOS = 15
 
 _SQL = """
