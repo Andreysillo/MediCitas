@@ -6,7 +6,11 @@ desenlace y estados) y RF20 (agenda del día). Es el único servicio que escribe
 
 from medicitas_comun import crear_app
 
+from . import bloqueos, horarios
+
 app = crear_app("agenda")
 
-# Cada grupo de requisitos va en su propio router dentro de app/, y se registra aquí:
-# app.include_router(disponibilidad.router)
+# Un router por grupo de requisitos; cada uno vive en su archivo.
+app.include_router(horarios.router)
+app.include_router(bloqueos.router)
+# Siguientes: disponibilidad (RF7, RF8), citas (RF9 a RF13), agenda del día (RF20).
