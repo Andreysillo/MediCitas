@@ -16,9 +16,14 @@ from contextvars import ContextVar
 
 import psycopg
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from psycopg import errors
+from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from .restricciones import MENSAJES
 
 log = logging.getLogger("medicitas")
 
@@ -82,6 +87,7 @@ def crear_app(nombre: str) -> FastAPI:
             max_size=int(os.getenv("BD_CONEXIONES", "10")),
             timeout=5,
             check=ConnectionPool.check_connection,
+            kwargs={"row_factory": dict_row},  # las filas llegan como diccionarios: se devuelven tal cual como JSON
             open=False,
         )
         app.state.pool.open(wait=False)
@@ -131,9 +137,20 @@ def crear_app(nombre: str) -> FastAPI:
         def traducir(request: Request, e: psycopg.Error, estado=estado, mensaje=mensaje):
             restriccion = e.diag.constraint_name
             log.info("rechazo del motor", extra={"datos": {"restriccion": restriccion}})
-            return JSONResponse({"detalle": mensaje, "restriccion": restriccion}, status_code=estado)
+            return JSONResponse({"detalle": MENSAJES.get(restriccion, mensaje), "restriccion": restriccion}, status_code=estado)
 
         app.add_exception_handler(tipo, traducir)
+
+    # Una sola forma para todo error de la API: {"detalle": "..."}. Así el frontend lee siempre el mismo campo.
+    def error_http(request: Request, e: StarletteHTTPException):
+        return JSONResponse({"detalle": e.detail}, status_code=e.status_code)
+
+    def datos_invalidos(request: Request, e: RequestValidationError):
+        campos = [{"campo": ".".join(str(x) for x in err["loc"][1:]), "problema": err["msg"]} for err in e.errors()]
+        return JSONResponse({"detalle": "Los datos enviados no son válidos", "campos": campos}, status_code=422)
+
+    app.add_exception_handler(StarletteHTTPException, error_http)
+    app.add_exception_handler(RequestValidationError, datos_invalidos)
 
     # La base caída o el pool agotado: 503 para que el cliente reintente, en vez de un 500 genérico.
     def sin_base(request: Request, e: Exception):
