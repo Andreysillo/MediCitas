@@ -62,10 +62,13 @@ y da `mundo.cita(...)` para crear citas.
 
 ## Reglas entre servicios y tareas
 
-- **Bloqueo de fila sobre el profesional.** Quien cambia lo que el profesional puede atender (un bloqueo nuevo, quitar
-  un bloque de horario) toma `FOR NO KEY UPDATE` sobre su fila de `profesional`. La reserva (RF9, T12) debe tomar
-  `FOR SHARE` sobre la misma fila **antes** de revisar horario y bloqueos. Así no se cuela una cita durante un bloqueo
-  (I3), y las reservas de espacios distintos no se frenan entre sí.
+- **Bloqueo de fila sobre el profesional (y el paciente).** Toda operación que cambie lo que el profesional puede
+  atender o lo que tiene reservado toma `FOR NO KEY UPDATE` sobre su fila de `profesional`: un bloqueo nuevo, quitar un
+  bloque de horario, reservar. La reserva toma además la del paciente, SIEMPRE en ese orden (profesional, luego
+  paciente). Con eso no se cuela una cita durante un bloqueo (I3) y, sobre todo, no hay deadlocks entre reservas que
+  disputan el mismo espacio: medido con 8 clientes y bloqueo compartido (`FOR SHARE`), varios abortaban con 40P01,
+  porque Postgres inserta la entrada del índice de exclusión antes de revisarla y cada inserción veía la de la otra.
+  La reprogramación (T13) debe respetar el mismo orden; si toma dos profesionales, en orden de `id`.
 
 ## Agregar una ruta
 

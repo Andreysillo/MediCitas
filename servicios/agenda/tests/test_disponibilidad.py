@@ -3,12 +3,7 @@
 import uuid
 from datetime import datetime, timedelta
 
-from conftest import CR, como, proximo
-
-
-def horario(con, mundo, prof, dia, ini, fin):
-    con.execute("INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) VALUES (%s,%s,%s,%s,%s)",
-                (mundo.clinica_a, prof, dia, ini, fin))
+from conftest import CR, como, poner_horario as horario, proximo
 
 
 def espacios(cliente, quien, prof, servicio, dia_iso=1, **extra):

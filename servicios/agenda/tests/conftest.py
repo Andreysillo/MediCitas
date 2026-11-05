@@ -6,7 +6,11 @@ semilla ni deja basura.
 """
 
 import os
+import socket
+import threading
+import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -14,6 +18,7 @@ os.environ.setdefault("AUTH_MODO", "desarrollo")
 
 import psycopg
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 from medicitas_comun import conexion
 from psycopg.rows import dict_row
@@ -22,6 +27,25 @@ from app.main import app
 
 # Costa Rica no tiene horario de verano: siempre UTC-6. Las clínicas de prueba usan esa zona.
 CR = timezone(timedelta(hours=-6))
+
+
+@contextmanager
+def servidor_real(aplicacion):
+    """Levanta `aplicacion` en un uvicorn de verdad (puerto libre, otro hilo) y devuelve su URL. A diferencia del
+    TestClient, la respuesta viaja por una conexión real y el cliente no espera a que termine el código posterior."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        puerto = sock.getsockname()[1]
+    srv = uvicorn.Server(uvicorn.Config(aplicacion, host="127.0.0.1", port=puerto, log_level="warning"))
+    hilo = threading.Thread(target=srv.run, daemon=True)
+    hilo.start()
+    while not srv.started:
+        time.sleep(0.05)
+    try:
+        yield f"http://127.0.0.1:{puerto}"
+    finally:
+        srv.should_exit = True
+        hilo.join(10)
 
 
 def proximo(dia_iso: int, hora: int, minuto: int = 0) -> datetime:
@@ -66,8 +90,7 @@ def _insertar(con, sql, *params):
     return con.execute(sql + " RETURNING id", params).fetchone()["id"]
 
 
-@pytest.fixture
-def mundo(con):
+def construir_mundo(con):
     """Dos clínicas. En la A: administrador, recepción, dos profesionales, un servicio y un paciente.
     En la B: un administrador. Más un administrador de plataforma."""
     w = SimpleNamespace()
@@ -120,5 +143,45 @@ def mundo(con):
             w.clinica_a, w.paciente, profesional or w.prof, w.servicio, inicio, inicio + timedelta(minutes=minutos), estado, w.admin,
             *([w.admin] if estado == "CANCELADA" else []))
 
+    def nuevo_paciente():
+        n = uuid.uuid4().hex[:10]
+        return _insertar(con, "INSERT INTO paciente (clinica_id, identificacion, nombre, fecha_nacimiento) VALUES (%s, %s, %s, '1990-01-01')",
+                         w.clinica_a, n, f"Paciente {n}")
+
     w.cita = cita
+    w.nuevo_paciente = nuevo_paciente
     return w
+
+
+def poner_horario(con, mundo, profesional, dia_iso, inicio, fin):
+    con.execute("INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) VALUES (%s,%s,%s,%s,%s)",
+                (mundo.clinica_a, profesional, dia_iso, inicio, fin))
+
+
+@pytest.fixture
+def mundo(con):
+    """El mundo de arriba dentro de la transacción de la prueba: se deshace solo con el ROLLBACK."""
+    return construir_mundo(con)
+
+
+@pytest.fixture
+def mundo_real():
+    """El mismo mundo pero CONFIRMADO (COMMIT) en la base, para las pruebas de concurrencia: varias conexiones
+    tienen que verse entre sí, y eso es imposible dentro de una transacción sin confirmar.
+    Al terminar se borra todo lo que creó, hija antes que madre. Solo toca filas de sus dos clínicas nuevas."""
+    c = psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True)
+    w = None
+    try:
+        with c.transaction():
+            w = construir_mundo(c)
+        yield w
+    finally:
+        if w is not None:
+            clinicas = [w.clinica_a, w.clinica_b]
+            with c.transaction():
+                for tabla in ("cita", "bloqueo_agenda", "horario_atencion", "profesional_servicio", "profesional",
+                              "servicio", "especialidad", "paciente", "usuario"):
+                    c.execute(f"DELETE FROM {tabla} WHERE clinica_id = ANY(%s)", (clinicas,))
+                c.execute("DELETE FROM usuario WHERE id = %s", (w.plataforma,))      # el único usuario sin clínica
+                c.execute("DELETE FROM clinica WHERE id = ANY(%s)", (clinicas,))
+        c.close()
