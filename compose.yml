@@ -13,6 +13,9 @@ x-api: &api
     # Hoy los tres usan el mismo usuario de la base. Cuando existan los roles de menor privilegio (T19),
     # cada servicio recibe aquí el suyo y el código no cambia.
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # "desarrollo": la identidad llega en la cabecera X-Usuario-Id, SIN validar. Solo mientras no exista Keycloak
+    # (T17 y T18). Con otro valor, los servicios rechazan toda solicitud con 401. Ver comun/medicitas_comun/sesion.py.
+    AUTH_MODO: ${AUTH_MODO:-desarrollo}
   depends_on:
     migraciones:
       condition: service_completed_successfully
@@ -62,6 +65,19 @@ services:
   agenda:
     <<: *api
     build: { context: ./servicios, args: { SERVICIO: agenda } }
+
+  # Pruebas del servicio de agenda contra la base real (cada prueba se deshace con ROLLBACK):
+  #   docker compose --profile pruebas run --rm pruebas-agenda
+  pruebas-agenda:
+    build: { context: ./servicios, target: pruebas, args: { SERVICIO: agenda } }
+    profiles: [pruebas]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_MODO: desarrollo
+    depends_on:
+      migraciones:
+        condition: service_completed_successfully
 
   # Persona B: clínicas, usuarios, catálogo, profesionales, pacientes y notas (RF1–RF4, RF14–RF16).
   plataforma:

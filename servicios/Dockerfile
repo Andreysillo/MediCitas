@@ -1,5 +1,5 @@
 # Una sola receta para los tres servicios de Python: el compose elige cuál con el argumento SERVICIO.
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
 ARG SERVICIO
 ENV SERVICIO=${SERVICIO} PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
@@ -12,6 +12,19 @@ COPY ${SERVICIO}/requirements.txt .
 RUN pip install --no-cache-dir /tmp/comun -r requirements.txt && rm -rf /tmp/comun
 
 COPY ${SERVICIO}/app ./app
+
+# ---- Pruebas: `docker compose --profile pruebas run --rm pruebas-agenda`. Lleva pytest; la imagen de
+# producción (la última etapa) no. ----
+FROM base AS pruebas
+ARG SERVICIO
+COPY ${SERVICIO}/requirements-dev.txt .
+RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY ${SERVICIO}/tests ./tests
+USER nobody
+CMD ["python", "-m", "pytest", "-p", "no:cacheprovider", "-q"]
+
+# ---- Producción: es la última etapa, así que es la que construye `docker compose build` por defecto. ----
+FROM base AS produccion
 
 # Sin privilegios: si alguien compromete el proceso, no es root dentro del contenedor.
 USER nobody

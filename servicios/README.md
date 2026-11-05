@@ -39,6 +39,34 @@ Todo sale de `crear_app()` en [comun/medicitas_comun/app.py](comun/medicitas_com
 `comun/` es solo infraestructura. Una regla de negocio va en el servicio dueño del requisito, aunque otro
 servicio la necesite parecida.
 
+## Quién hace la solicitud
+
+Una ruta que necesita saber quién llama recibe `sesion: Sesion = Depends(sesion_de_clinica)` y toma de ahí la
+clínica y el rol. **La clínica nunca se lee de la solicitud** (I5).
+
+Hoy, mientras no exista Keycloak, `AUTH_MODO=desarrollo` (compose) hace que la identidad llegue en la cabecera
+`X-Usuario-Id`, sin validar: **no es seguro** y sirve solo para desarrollar. Con cualquier otro valor, todo
+responde 401. Cuando B entregue la validación del JWT (T17 y T18), solo cambia el cuerpo de `sesion_actual`
+en [comun/medicitas_comun/sesion.py](comun/medicitas_comun/sesion.py); las rutas no se tocan.
+
+## Pruebas
+
+Corren contra la base real y cada prueba se deshace con ROLLBACK, así que no dependen de la semilla ni dejan datos:
+
+```bash
+docker compose --profile pruebas run --rm --build pruebas-agenda
+```
+
+`tests/conftest.py` arma un "mundo" mínimo por prueba (dos clínicas, usuarios de cada rol, profesionales, un paciente)
+y da `mundo.cita(...)` para crear citas.
+
+## Reglas entre servicios y tareas
+
+- **Bloqueo de fila sobre el profesional.** Quien cambia lo que el profesional puede atender (un bloqueo nuevo, quitar
+  un bloque de horario) toma `FOR NO KEY UPDATE` sobre su fila de `profesional`. La reserva (RF9, T12) debe tomar
+  `FOR SHARE` sobre la misma fila **antes** de revisar horario y bloqueos. Así no se cuela una cita durante un bloqueo
+  (I3), y las reservas de espacios distintos no se frenan entre sí.
+
 ## Agregar una ruta
 
 En el servicio que corresponda, un archivo por grupo de requisitos, por ejemplo `agenda/app/disponibilidad.py`:
