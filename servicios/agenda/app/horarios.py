@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from medicitas_comun import Sesion, conexion
+from medicitas_comun import CONEXION, Sesion
 
 from . import conflictos
 from .esquemas import Horario, HorarioEliminado, NuevoHorario, ProfesionalResumen
@@ -16,7 +16,7 @@ _COLUMNAS = "id, profesional_id, dia_semana, to_char(hora_inicio, 'HH24:MI') AS 
 
 
 @router.get("/profesionales", response_model=list[ProfesionalResumen])
-def profesionales_gestionables(sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def profesionales_gestionables(sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Los profesionales cuyo horario puede gestionar quien consulta: todos los de su clínica, o solo él mismo."""
     return con.execute(
         """SELECT p.id, u.nombre, e.nombre AS especialidad
@@ -30,7 +30,7 @@ def profesionales_gestionables(sesion: Sesion = Depends(puede_gestionar), con=De
 
 
 @router.get("/profesionales/{profesional_id}/horarios", response_model=list[Horario])
-def listar_horarios(profesional_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def listar_horarios(profesional_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     profesional_accesible(con, sesion, profesional_id)
     return con.execute(
         f"SELECT {_COLUMNAS} FROM horario_atencion WHERE profesional_id = %s ORDER BY dia_semana, hora_inicio",
@@ -39,7 +39,7 @@ def listar_horarios(profesional_id: UUID, sesion: Sesion = Depends(puede_gestion
 
 
 @router.post("/profesionales/{profesional_id}/horarios", response_model=Horario, status_code=201)
-def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Agrega un bloque. Un mismo día puede tener varios, pero no solapados.
 
     No se revisa el solape aquí: lo rechaza la restricción `horario_sin_solape` del motor (409). Revisarlo antes
@@ -54,7 +54,7 @@ def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, sesion: Sesion = De
 
 
 @router.delete("/horarios/{horario_id}", response_model=HorarioEliminado)
-def eliminar_horario(horario_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def eliminar_horario(horario_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Quita un bloque. Rige hacia adelante: no cancela citas, pero devuelve las reservas que quedaron fuera
     de toda atención (I3) para que recepción las reprograme."""
     fila = con.execute(

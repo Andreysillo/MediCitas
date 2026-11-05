@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from medicitas_comun import Sesion, conexion
+from medicitas_comun import CONEXION, Sesion
 
 from . import conflictos
 from .esquemas import Bloqueo, NuevoBloqueo
@@ -14,7 +14,7 @@ router = APIRouter(tags=["RF6 · Bloqueos"])
 
 
 @router.get("/profesionales/{profesional_id}/bloqueos", response_model=list[Bloqueo])
-def listar_bloqueos(profesional_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def listar_bloqueos(profesional_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Bloqueos vigentes o futuros, cada uno con las citas reservadas que deja en conflicto."""
     profesional_accesible(con, sesion, profesional_id)
     bloqueos = con.execute(
@@ -28,7 +28,7 @@ def listar_bloqueos(profesional_id: UUID, sesion: Sesion = Depends(puede_gestion
 
 
 @router.post("/profesionales/{profesional_id}/bloqueos", response_model=Bloqueo, status_code=201)
-def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Registra el bloqueo. Retira la disponibilidad hacia adelante, pero NO cancela citas: las reservadas
     que caen dentro vuelven en `conflictos` para que recepción las reprograme."""
     if nuevo.fin <= datetime.now(timezone.utc):
@@ -46,7 +46,7 @@ def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = De
 
 
 @router.delete("/bloqueos/{bloqueo_id}", status_code=204)
-def eliminar_bloqueo(bloqueo_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
+def eliminar_bloqueo(bloqueo_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     fila = con.execute(
         "SELECT profesional_id FROM bloqueo_agenda WHERE id = %s AND clinica_id = %s", (bloqueo_id, sesion.clinica_id)
     ).fetchone()

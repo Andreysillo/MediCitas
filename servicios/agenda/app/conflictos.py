@@ -33,21 +33,10 @@ def en_bloqueo(citas: list[dict], inicio: datetime, fin: datetime) -> list[dict]
 def fuera_de_horario(con, clinica_id: UUID, profesional_id: UUID) -> list[dict]:
     """I3: las reservas que ya no caben entera en ningún bloque del horario semanal.
 
-    El horario está en hora local de la clínica y las citas son instantes absolutos, así que cada cita se
-    convierte a la zona de su clínica para saber qué día de la semana y qué hora le corresponde.
+    "Cabe en el horario" lo define una sola función de la base, `cabe_en_horario` (migración 006), que la reserva
+    también usa: así las dos nunca discrepan.
     """
     return con.execute(
-        _CITAS_RESERVADAS_FUTURAS
-        + """
-       AND NOT EXISTS (
-           SELECT 1
-             FROM horario_atencion h, clinica cl
-            WHERE cl.id = c.clinica_id AND h.profesional_id = c.profesional_id
-              AND h.dia_semana = extract(isodow FROM c.inicio AT TIME ZONE cl.zona_horaria)
-              -- una cita que cruza la medianoche no cabe en ningún bloque
-              AND (c.inicio AT TIME ZONE cl.zona_horaria)::date = (c.fin AT TIME ZONE cl.zona_horaria)::date
-              AND (c.inicio AT TIME ZONE cl.zona_horaria)::time >= h.hora_inicio
-              AND (c.fin    AT TIME ZONE cl.zona_horaria)::time <= h.hora_fin)
-     ORDER BY c.inicio""",
+        _CITAS_RESERVADAS_FUTURAS + " AND NOT cabe_en_horario(c.profesional_id, c.inicio, c.fin) ORDER BY c.inicio",
         {"clinica": clinica_id, "profesional": profesional_id},
     ).fetchall()

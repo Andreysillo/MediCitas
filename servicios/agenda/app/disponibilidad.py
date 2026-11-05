@@ -5,7 +5,7 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from medicitas_comun import Sesion, conexion, sesion_de_clinica
+from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
 from .esquemas import DisponibilidadDeProfesional, EspaciosDelDia
 from .espacios import espacios_libres
@@ -37,7 +37,7 @@ def disponibilidad_de_profesional(
     fecha: date,
     ignorar_cita: UUID | None = None,
     sesion: Sesion = Depends(sesion_de_clinica),
-    con=Depends(conexion),
+    con=CONEXION,
 ):
     """RF7: a qué horas puede empezar una cita de ese servicio con ese profesional, en esa fecha (hora local de la clínica)."""
     servicio = _servicio_y_zona(con, sesion, servicio_id)
@@ -75,7 +75,7 @@ def disponibilidad_de_servicio(
     dias: int = Query(7, ge=1, le=DIAS_MAXIMOS),
     ignorar_cita: UUID | None = None,
     sesion: Sesion = Depends(sesion_de_clinica),
-    con=Depends(conexion),
+    con=CONEXION,
 ):
     """RF8: los profesionales que tienen espacio para ese servicio en el rango, y cuáles son.
 

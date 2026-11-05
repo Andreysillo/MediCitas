@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException
 
-from .app import conexion
+from .app import CONEXION
 
 ROLES = ("ADM_PLATAFORMA", "ADM_CLINICA", "RECEPCION", "PROFESIONAL")
 
@@ -27,7 +27,7 @@ class Sesion:
     rol: str
 
 
-def sesion_actual(x_usuario_id: str | None = Header(default=None), con=Depends(conexion)) -> Sesion:
+def sesion_actual(x_usuario_id: str | None = Header(default=None), con=CONEXION) -> Sesion:
     if os.getenv("AUTH_MODO") != "desarrollo":
         # Sin modo de desarrollo y sin JWT todavía: se rechaza todo en vez de dejar pasar a alguien.
         raise HTTPException(401, "Autenticación no configurada")

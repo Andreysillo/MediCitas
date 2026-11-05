@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 
 import psycopg
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from psycopg import errors
@@ -66,10 +66,17 @@ def conexion(request: Request):
     """Dependencia de FastAPI: una conexión por solicitud, dentro de UNA transacción.
 
     Al terminar la ruta sin error se hace COMMIT; si lanza una excepción, ROLLBACK. Así una reserva nunca
-    queda a medias.
+    queda a medias. Las rutas la piden con `CONEXION`, no con `Depends(conexion)`: ver abajo.
     """
     with request.app.state.pool.connection() as con:
         yield con
+
+
+# scope="function": el COMMIT ocurre ANTES de enviar la respuesta. Con el valor por defecto ("request") FastAPI
+# envía primero la respuesta y cierra la dependencia después: medido, el cliente recibía el 201 ~1 s antes de que
+# se ejecutara el código posterior al `yield`. Una reserva "concedida" cuyo commit aún no ocurrió no sirve: quien
+# consulta justo después (I7, I8) no la vería, y si el commit fallara el cliente ya habría recibido un éxito.
+CONEXION = Depends(conexion, scope="function")
 
 
 def crear_app(nombre: str) -> FastAPI:
@@ -87,7 +94,21 @@ def crear_app(nombre: str) -> FastAPI:
             max_size=int(os.getenv("BD_CONEXIONES", "10")),
             timeout=5,
             check=ConnectionPool.check_connection,
-            kwargs={"row_factory": dict_row},  # las filas llegan como diccionarios: se devuelven tal cual como JSON
+            kwargs={
+                "row_factory": dict_row,  # las filas llegan como diccionarios: se devuelven tal cual como JSON
+                # Opciones de CADA conexión del pool (un espacio dentro de un valor se escapa con barra invertida):
+                #  - READ COMMITTED, explícito. Las reservas lo necesitan: toman un bloqueo de fila y después leen
+                #    horarios y bloqueos; cada sentencia debe ver lo que otros confirmaron mientras esperaban el
+                #    bloqueo. Con REPEATABLE READ la foto se toma antes de esperar y no vería un bloqueo de agenda
+                #    confirmado en medio (I3). Las colisiones (I1, I2) las decide el motor con sus exclusiones.
+                #  - lock_timeout: esperar un bloqueo más de 5 s es un problema; mejor un 503 que una solicitud colgada.
+                #  - idle_in_transaction_session_timeout: una transacción abandonada no retiene bloqueos para siempre.
+                "options": (
+                    "-c default_transaction_isolation=read\\ committed"
+                    f" -c lock_timeout={os.getenv('BD_LOCK_TIMEOUT_MS', '5000')}"
+                    " -c idle_in_transaction_session_timeout=30000"
+                ),
+            },
             open=False,
         )
         app.state.pool.open(wait=False)
@@ -151,6 +172,15 @@ def crear_app(nombre: str) -> FastAPI:
 
     app.add_exception_handler(StarletteHTTPException, error_http)
     app.add_exception_handler(RequestValidationError, datos_invalidos)
+
+    # Fallos transitorios del motor (bloqueo esperado de más, deadlock que ya no se pudo reintentar): la solicitud
+    # es válida y no se aplicó nada; el cliente puede repetirla.
+    def reintentable(request: Request, e: psycopg.Error):
+        log.warning("conflicto transitorio del motor", extra={"datos": {"error": type(e).__name__}})
+        return JSONResponse({"detalle": "El sistema está ocupado, intenta de nuevo"}, status_code=503, headers={"Retry-After": "1"})
+
+    for tipo in (errors.DeadlockDetected, errors.SerializationFailure, errors.LockNotAvailable):
+        app.add_exception_handler(tipo, reintentable)
 
     # La base caída o el pool agotado: 503 para que el cliente reintente, en vez de un 500 genérico.
     def sin_base(request: Request, e: Exception):
