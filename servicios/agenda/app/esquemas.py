@@ -1,13 +1,15 @@
 """Forma de lo que entra y sale de la API de la agenda (horarios, bloqueos y disponibilidad). FastAPI los usa para validar y para /docs."""
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 # "08:00", no "8:00" ni "08:00:30": con ceros a la izquierda, comparar el texto es comparar la hora.
 Hora = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["08:00"])]
+
+Motivo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)]
 
 
 class ProfesionalResumen(BaseModel):
@@ -37,7 +39,7 @@ class NuevoBloqueo(BaseModel):
     # AwareDatetime exige zona horaria ("...-06:00" o "...Z"): un instante sin zona es ambiguo.
     inicio: AwareDatetime
     fin: AwareDatetime
-    motivo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)]
+    motivo: Motivo
 
     @model_validator(mode="after")
     def fin_despues_del_inicio(self):
@@ -94,18 +96,23 @@ class DisponibilidadDeProfesional(BaseModel):
     dias: list[DisponibilidadDia]
 
 
-# ---------- Citas (RF9) ----------
+# ---------- Citas (RF9 a RF13) ----------
 
 
-class SolicitudReserva(BaseModel):
-    """Lo único que envía el cliente. No lleva `fin` (lo fija el servicio, I4) ni `clinica_id` (lo fija la sesión, I5):
-    `extra="forbid"` hace que enviarlos sea un error 422 y no un dato que se ignora en silencio."""
+class Error(BaseModel):
+    """Forma de toda respuesta de error de la API."""
+
+    detalle: str
+    restriccion: str | None = Field(default=None, description="La restricción del motor que rechazó la operación, si la hubo")
+
+
+class _Espacio(BaseModel):
+    """Un instante de inicio. `extra="forbid"`: enviar `fin` o `clinica_id` es un error 422, no un dato que se ignora en
+    silencio. El fin lo fija el servicio (I4) y la clínica la sesión (I5)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    paciente_id: UUID
     profesional_id: UUID
-    servicio_id: UUID
     inicio: AwareDatetime
 
     @model_validator(mode="after")
@@ -113,6 +120,27 @@ class SolicitudReserva(BaseModel):
         if self.inicio.second or self.inicio.microsecond:
             raise ValueError("El inicio debe ser en minutos exactos")
         return self
+
+
+class SolicitudReserva(_Espacio):
+    paciente_id: UUID
+    servicio_id: UUID
+
+
+class Reprogramacion(_Espacio):
+    """El nuevo espacio. El paciente y el servicio no cambian: los pone la cita original."""
+
+
+class Cancelacion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    motivo: Motivo
+
+
+class Desenlace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    desenlace: Literal["ATENDIDA", "AUSENTE"]
 
 
 class Cita(BaseModel):
@@ -125,5 +153,9 @@ class Cita(BaseModel):
     estado: str
     creada_por: UUID
     creada_en: datetime
+    cancelada_por: UUID | None
+    cancelada_en: datetime | None
+    motivo_cancelacion: str | None
+    cita_origen_id: UUID | None = Field(description="La cita que ésta reprograma")
     paciente: str
     servicio: str

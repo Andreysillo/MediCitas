@@ -14,7 +14,8 @@ from fastapi import HTTPException
 NO_EXISTEN = "El paciente, el profesional o el servicio no existen en esta clínica"
 
 
-def validar_y_calcular_fin(con, clinica_id: UUID, paciente_id: UUID, profesional_id: UUID, servicio_id: UUID, inicio: datetime) -> datetime:
+def validar_y_calcular_fin(con, clinica_id: UUID, paciente_id: UUID, profesional_id: UUID, servicio_id: UUID, inicio: datetime,
+                           *, duracion: timedelta | None = None) -> datetime:
     """Valida la solicitud DENTRO de la transacción de la reserva y devuelve el `fin` de la cita (I4).
 
     Orden (importa):
@@ -32,7 +33,8 @@ def validar_y_calcular_fin(con, clinica_id: UUID, paciente_id: UUID, profesional
          NO KEY UPDATE y no UPDATE: no estorba la verificación de claves foráneas de otras inserciones.
       2. Existencia, estado y habilitación (RF4), con la clínica de la sesión (I5): un id de otra clínica responde igual
          que uno inexistente.
-      3. La duración sale del servicio, nunca del cliente (I4).
+      3. La duración sale del servicio, nunca del cliente (I4). Al reprogramar se pasa `duracion`: la cita conserva la que
+         tenía, aunque el servicio haya cambiado después, porque ninguna operación la altera por su cuenta.
       4. Horario y bloqueos (I3), ya con el bloqueo tomado. Esto depende de READ COMMITTED: cada sentencia ve lo que otros
          confirmaron mientras esta esperaba el bloqueo (ver el pool en medicitas_comun/app.py).
     """
@@ -60,7 +62,7 @@ def validar_y_calcular_fin(con, clinica_id: UUID, paciente_id: UUID, profesional
     if not datos["habilitado"]:
         raise HTTPException(422, "El profesional no atiende ese servicio")
 
-    fin = inicio + timedelta(minutes=datos["duracion_minutos"])
+    fin = inicio + (duracion or timedelta(minutes=datos["duracion_minutos"]))
 
     # Una sola consulta con las tres comprobaciones; `now()` es la hora de la base, la misma que usa todo lo demás.
     espacio = con.execute(
