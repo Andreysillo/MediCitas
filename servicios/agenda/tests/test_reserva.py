@@ -39,7 +39,7 @@ def test_la_duracion_la_decide_el_servicio_y_no_se_puede_enviar_fin_ni_clinica(c
     c = reservar(cliente, mundo.recepcion, mundo, proximo(1, 9), servicio=largo).json()
     assert datetime.fromisoformat(c["fin"]) - datetime.fromisoformat(c["inicio"]) == timedelta(minutes=45)
 
-    # Intentos de colar el fin (I4) o la clínica (I5) en la solicitud: se rechazan, no se ignoran en silencio.
+    # Intentos de enviar el fin (I4) o la clínica (I5) por la cuenta del cliente en la solicitud: se rechazan, no se ignoran en silencio.
     fin_falso = (proximo(1, 11)).isoformat()
     assert reservar(cliente, mundo.recepcion, mundo, proximo(1, 10), fin=fin_falso).status_code == 422
     assert reservar(cliente, mundo.recepcion, mundo, proximo(1, 10), clinica_id=str(mundo.clinica_b)).status_code == 422

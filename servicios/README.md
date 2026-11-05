@@ -65,7 +65,7 @@ y da `mundo.cita(...)` para crear citas.
 - **Bloqueo de fila sobre el profesional (y el paciente).** Toda operación que cambie lo que el profesional puede
   atender o lo que tiene reservado toma `FOR NO KEY UPDATE` sobre su fila de `profesional`: un bloqueo nuevo, quitar un
   bloque de horario, reservar. La reserva toma además la del paciente, SIEMPRE en ese orden (profesional, luego
-  paciente). Con eso no se cuela una cita durante un bloqueo (I3) y, sobre todo, no hay deadlocks entre reservas que
+  paciente). Con eso nunca queda una cita dentro de un bloqueo sin que el sistema lo sepa (I3) y, sobre todo, no hay deadlocks entre reservas que
   disputan el mismo espacio: medido con 8 clientes y bloqueo compartido (`FOR SHARE`), varios abortaban con 40P01,
   porque Postgres inserta la entrada del índice de exclusión antes de revisarla y cada inserción veía la de la otra.
   La reprogramación (T13) debe respetar el mismo orden; si toma dos profesionales, en orden de `id`.

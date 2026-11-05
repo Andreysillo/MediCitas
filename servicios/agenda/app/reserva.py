@@ -27,7 +27,7 @@ def validar_y_calcular_fin(con, clinica_id: UUID, paciente_id: UUID, profesional
             la rechaza al instante con 23P01 (409). Reservas de profesionales y pacientes distintos siguen en paralelo.
          b) Quien cambia la agenda del profesional (un bloqueo nuevo, quitar un bloque de horario) toma el mismo
             bloqueo, así que o el cambio entra antes y esta reserva lo ve en el paso 4, o la reserva entra antes y el
-            cambio la lista como conflicto. Nunca se cuela una cita en un bloqueo (I3).
+            cambio la lista como conflicto. Nunca queda una cita dentro de un bloqueo sin que nadie lo sepa (I3).
          c) El orden fijo (profesional, luego paciente) evita que dos reservas se esperen en círculo.
          NO KEY UPDATE y no UPDATE: no estorba la verificación de claves foráneas de otras inserciones.
       2. Existencia, estado y habilitación (RF4), con la clínica de la sesión (I5): un id de otra clínica responde igual

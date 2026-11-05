@@ -108,7 +108,7 @@ def test_un_paciente_no_puede_estar_en_dos_consultas_a_la_vez_I2(servidor, mundo
         assert len(confirmado(f"SELECT id FROM cita WHERE paciente_id = %s AND inicio = %s AND {VIGENTES}", w.paciente, inicio)) == 1
 
 
-def test_un_bloqueo_y_una_reserva_simultaneos_nunca_dejan_una_cita_colada_I3(servidor, mundo_real):
+def test_un_bloqueo_y_una_reserva_simultaneos_nunca_dejan_una_cita_dentro_del_bloqueo_sin_avisar_I3(servidor, mundo_real):
     """Alguien crea un bloqueo mientras otra persona reserva dentro de él. Los dos resultados correctos son:
     la reserva se rechazó (422) o la reserva se concedió y el bloqueo la lista como conflicto. Lo incorrecto sería una
     cita dentro del bloqueo que el bloqueo no menciona."""
@@ -124,7 +124,7 @@ def test_un_bloqueo_y_una_reserva_simultaneos_nunca_dejan_una_cita_colada_I3(ser
         ])
         assert r_bloqueo.status_code == 201, r_bloqueo.text
         if r_reserva.status_code == 201:
-            assert r_reserva.json()["id"] in [c["id"] for c in r_bloqueo.json()["conflictos"]], f"ronda {ronda}: cita colada"
+            assert r_reserva.json()["id"] in [c["id"] for c in r_bloqueo.json()["conflictos"]], f"ronda {ronda}: cita dentro del bloqueo que el bloqueo no lista"
             vistas["cita_listada_como_conflicto"] += 1
         else:
             assert r_reserva.status_code == 422 and "bloqueo" in r_reserva.json()["detalle"], f"ronda {ronda}: {r_reserva.text}"

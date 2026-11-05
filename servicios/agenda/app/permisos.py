@@ -22,7 +22,7 @@ def profesional_accesible(con, sesion: Sesion, profesional_id: UUID, *, bloquear
     bloquear=True toma un bloqueo de fila sobre el profesional, para los cambios que pueden dejar citas fuera
     de su agenda (un bloqueo nuevo, quitar un bloque de horario). La reserva (RF9) toma el MISMO bloqueo
     (ver reserva.py), así que o la reserva entra antes y el cambio la lista como conflicto, o entra después y
-    ya ve el cambio: nunca queda una cita colada. NO KEY UPDATE (y no UPDATE) para no frenar la verificación
+    ya ve el cambio: nunca queda una cita dentro de un bloqueo sin avisar. NO KEY UPDATE (y no UPDATE) para no frenar la verificación
     de las claves foráneas de otras inserciones.
     """
     sql = "SELECT id, clinica_id, usuario_id FROM profesional WHERE id = %s AND clinica_id = %s AND activo"
