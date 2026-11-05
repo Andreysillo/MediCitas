@@ -1,0 +1,494 @@
+{
+  "realm": "medicitas",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADM_PLATAFORMA",
+        "description": "Administrador de la plataforma MediCitas"
+      },
+      {
+        "name": "ADM_CLINICA",
+        "description": "Administrador de una clínica"
+      },
+      {
+        "name": "RECEPCION",
+        "description": "Recepción de una clínica"
+      },
+      {
+        "name": "PROFESIONAL",
+        "description": "Profesional de salud"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "medicitas-web",
+      "name": "MediCitas (frontend)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      }
+    },
+    {
+      "clientId": "medicitas-api",
+      "name": "MediCitas (pruebas y colección de peticiones)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "id": "4c9db7d3-507c-0812-0ef4-463177a069b3",
+      "username": "plataforma",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Equipo",
+      "lastName": "MediCitas",
+      "email": "plataforma@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADM_PLATAFORMA"
+      ],
+      "attributes": {
+        "clinica": []
+      }
+    },
+    {
+      "id": "7ac6a806-2937-483f-94ae-f0a5cfd319e3",
+      "username": "san-rafael-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Marta",
+      "lastName": "Solís",
+      "email": "san-rafael-admin@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADM_CLINICA"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "f89905e4-7b85-c7df-235d-724f9b3fce25",
+      "username": "san-rafael-recepcion",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Daniela",
+      "lastName": "Chaves",
+      "email": "san-rafael-recepcion@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RECEPCION"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "2b86fb55-6691-e1a2-61aa-3d969d095dab",
+      "username": "del-valle-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Jorge",
+      "lastName": "Herrera",
+      "email": "del-valle-admin@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADM_CLINICA"
+      ],
+      "attributes": {
+        "clinica": [
+          "del-valle"
+        ]
+      }
+    },
+    {
+      "id": "6598d4a4-02d5-bd3f-8ab5-477216feae18",
+      "username": "del-valle-recepcion",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Karla",
+      "lastName": "Monge",
+      "email": "del-valle-recepcion@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RECEPCION"
+      ],
+      "attributes": {
+        "clinica": [
+          "del-valle"
+        ]
+      }
+    },
+    {
+      "id": "63ecc2a6-8b67-d7cf-6b5f-33d64a9e496a",
+      "username": "los-robles-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Silvia",
+      "lastName": "Alfaro",
+      "email": "los-robles-admin@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADM_CLINICA"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    },
+    {
+      "id": "19329ca0-422b-39f8-f648-71c9e6951e41",
+      "username": "los-robles-recepcion",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Fernanda",
+      "lastName": "Ruiz",
+      "email": "los-robles-recepcion@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RECEPCION"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    },
+    {
+      "id": "c38bd2bf-46b1-e5eb-1a78-9af483924202",
+      "username": "san-rafael-laura-mendez",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dra.",
+      "lastName": "Laura Méndez",
+      "email": "san-rafael-laura-mendez@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "64e100c9-e770-0b98-8b8a-6daa32e11abf",
+      "username": "san-rafael-carlos-jimenez",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dr.",
+      "lastName": "Carlos Jiménez",
+      "email": "san-rafael-carlos-jimenez@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "f398f1a7-b67e-ba1c-bb2c-d0511f5304ed",
+      "username": "san-rafael-sofia-vargas",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dra.",
+      "lastName": "Sofía Vargas",
+      "email": "san-rafael-sofia-vargas@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "dc2298e7-0ef0-482b-d9f1-81105424e6f9",
+      "username": "san-rafael-andres-rojas",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dr.",
+      "lastName": "Andrés Rojas",
+      "email": "san-rafael-andres-rojas@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "san-rafael"
+        ]
+      }
+    },
+    {
+      "id": "cec340ab-b45a-4a40-9ec3-16549994a925",
+      "username": "del-valle-esteban-quesada",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dr.",
+      "lastName": "Esteban Quesada",
+      "email": "del-valle-esteban-quesada@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "del-valle"
+        ]
+      }
+    },
+    {
+      "id": "a7677eb4-d2ae-0fca-8b27-ec045093223e",
+      "username": "del-valle-valeria-castro",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dra.",
+      "lastName": "Valeria Castro",
+      "email": "del-valle-valeria-castro@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "del-valle"
+        ]
+      }
+    },
+    {
+      "id": "3f808892-bac9-6e6f-30ce-a7ae9a9040a9",
+      "username": "del-valle-paula-arias",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dra.",
+      "lastName": "Paula Arias",
+      "email": "del-valle-paula-arias@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "del-valle"
+        ]
+      }
+    },
+    {
+      "id": "38705700-55f5-ca89-7e37-faf7bd17ee3a",
+      "username": "los-robles-diego-navarro",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Lic.",
+      "lastName": "Diego Navarro",
+      "email": "los-robles-diego-navarro@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    },
+    {
+      "id": "d2107bdf-619c-b4ce-df32-bc0b2e09a087",
+      "username": "los-robles-gabriela-soto",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Lic.",
+      "lastName": "Gabriela Soto",
+      "email": "los-robles-gabriela-soto@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    },
+    {
+      "id": "eaee129a-6675-9226-c973-90cf86241141",
+      "username": "los-robles-natalia-perez",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Lic.",
+      "lastName": "Natalia Pérez",
+      "email": "los-robles-natalia-perez@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    },
+    {
+      "id": "3d751bf1-f60b-f817-452a-4a1f9de702d5",
+      "username": "los-robles-mauricio-leon",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dr.",
+      "lastName": "Mauricio León",
+      "email": "los-robles-mauricio-leon@medicitas.test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "medicitas123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "PROFESIONAL"
+      ],
+      "attributes": {
+        "clinica": [
+          "los-robles"
+        ]
+      }
+    }
+  ]
+}

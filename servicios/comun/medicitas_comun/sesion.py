@@ -3,17 +3,27 @@
 Esta es la ÚNICA puerta por la que las rutas saben quién llama. Una ruta recibe `sesion: Sesion = Depends(sesion_actual)`
 y toma la clínica de ahí, nunca de un parámetro de la solicitud (I5).
 
-Hoy funciona en modo `desarrollo` (AUTH_MODO=desarrollo): confía en la cabecera X-Usuario-Id y busca al usuario
-en la base. NO es seguro, porque cualquiera puede escribir esa cabecera. Cuando exista Keycloak (T17 y T18, de B),
-solo cambia el cuerpo de `sesion_actual`: validará el JWT y sacará de él el mismo trío (usuario, clínica, rol).
-Las rutas no se enteran.
+Dos modos, elegidos por AUTH_MODO (variable del compose):
+
+- "keycloak" (por defecto): RF17. Valida el JWT del encabezado Authorization contra las llaves públicas del
+  realm y busca al usuario por `keycloak_sub = token["sub"]`. No se implementa el inicio de sesión: eso lo
+  hace Keycloak, aquí solo se verifica lo que firmó.
+- "desarrollo": confía en la cabecera X-Usuario-Id, SIN validar. Solo para desarrollar sin levantar Keycloak
+  y para las pruebas (tests/conftest.py lo fija con os.environ.setdefault). NO es segura: cualquiera puede
+  escribir esa cabecera.
+
+Con cualquier otro valor (o sin configurar) todo se rechaza con 401 en vez de dejar pasar a alguien. Las
+rutas no se enteran de cuál de los dos modos está activo: siempre reciben el mismo `Sesion`.
 """
 
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 from uuid import UUID
 
+import jwt
 from fastapi import Depends, Header, HTTPException
+from jwt import PyJWKClient
 
 from .app import CONEXION
 
@@ -25,26 +35,73 @@ class Sesion:
     rol: str
 
 
-def sesion_actual(x_usuario_id: str | None = Header(default=None), con=CONEXION) -> Sesion:
-    if os.getenv("AUTH_MODO") != "desarrollo":
-        # Sin modo de desarrollo y sin JWT todavía: se rechaza todo en vez de dejar pasar a alguien.
-        raise HTTPException(401, "Autenticación no configurada")
+@lru_cache
+def _cliente_jwks() -> PyJWKClient:
+    """Un cliente por proceso: PyJWKClient cachea las llaves públicas del realm y solo vuelve a pedirlas al
+    JWKS si aparece un `kid` que no conoce (por ejemplo, tras rotar las llaves). KEYCLOAK_ISSUER es la URL
+    del realm vista desde dentro del compose, por ejemplo http://keycloak:8080/realms/medicitas."""
+    emisor = os.environ["KEYCLOAK_ISSUER"]
+    return PyJWKClient(f"{emisor}/protocol/openid-connect/certs")
+
+
+def _sub_del_token(autorizacion: str | None) -> str:
+    """Valida firma, emisor y expiración del JWT contra las llaves públicas del realm, y devuelve su `sub`.
+
+    No se exige `aud`: el realm es exclusivo de MediCitas (lo versiona este repositorio), así que cualquier
+    token que el realm firme proviene de uno de sus propios clients; no hay otra audiencia de la que
+    protegerse. Es una decisión documentada, no un descuido (ver docs/diseno-modelo-logico.md, «Identidad
+    delegada»); si el realm llegara a compartirse con otra aplicación, aquí es donde se agregaría la
+    validación de `aud` o `azp`.
+    """
+    if not autorizacion or not autorizacion.lower().startswith("bearer "):
+        raise HTTPException(401, "Falta el token de acceso")
+    token = autorizacion[len("bearer "):].strip()
     try:
-        usuario_id = UUID(x_usuario_id or "")
-    except ValueError:
-        raise HTTPException(401, "No hay sesión iniciada")
+        llave = _cliente_jwks().get_signing_key_from_jwt(token)
+        datos = jwt.decode(
+            token,
+            llave.key,
+            algorithms=["RS256"],
+            issuer=os.environ["KEYCLOAK_ISSUER"],
+            options={"verify_aud": False},
+        )
+    except jwt.PyJWTError as e:
+        raise HTTPException(401, f"Token inválido: {e}")
+    sub = datos.get("sub")
+    if not sub:
+        raise HTTPException(401, "El token no trae identificador de usuario")
+    return sub
+
+
+_CONSULTA = "SELECT u.id, u.clinica_id, r.codigo AS rol, u.activo FROM usuario u JOIN rol r ON r.id = u.rol_id WHERE u.{} = %s"
+
+
+def sesion_actual(
+    authorization: str | None = Header(default=None),
+    x_usuario_id: str | None = Header(default=None, alias="X-Usuario-Id"),
+    con=CONEXION,
+) -> Sesion:
+    modo = os.getenv("AUTH_MODO")
+
+    if modo == "keycloak":
+        fila = con.execute(_CONSULTA.format("keycloak_sub"), (_sub_del_token(authorization),)).fetchone()
+    elif modo == "desarrollo":
+        try:
+            usuario_id = UUID(x_usuario_id or "")
+        except ValueError:
+            raise HTTPException(401, "No hay sesión iniciada")
+        fila = con.execute(_CONSULTA.format("id"), (usuario_id,)).fetchone()
+    else:
+        # Ni "keycloak" ni "desarrollo": se rechaza todo en vez de dejar pasar a alguien.
+        raise HTTPException(401, "Autenticación no configurada")
 
     # Se consulta en CADA solicitud, así una baja lógica corta el acceso de inmediato sin esperar a que el
-    # token expire (decisión abierta 2 del documento de diseño).
-    fila = con.execute(
-        "SELECT u.clinica_id, r.codigo AS rol, u.activo FROM usuario u JOIN rol r ON r.id = u.rol_id WHERE u.id = %s",
-        (usuario_id,),
-    ).fetchone()
+    # token expire (decisión abierta 2 del documento de diseño, ya resuelta en ese sentido).
     if fila is None:
         raise HTTPException(401, "Usuario desconocido")
     if not fila["activo"]:
         raise HTTPException(403, "Tu usuario fue dado de baja")
-    return Sesion(usuario_id, fila["clinica_id"], fila["rol"])
+    return Sesion(fila["id"], fila["clinica_id"], fila["rol"])
 
 
 def sesion_de_clinica(sesion: Sesion = Depends(sesion_actual)) -> Sesion:

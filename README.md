@@ -17,6 +17,7 @@ y `/api/auditoria/docs`.
 |---|---|
 | `db` | PostgreSQL 16. Sin puerto publicado |
 | `migraciones` | Aplica el esquema y la semilla nuevos, y termina ([db/](db/README.md)) |
+| `keycloak` | Proveedor de identidad (RF17). Importa `keycloak/realm-export.json` al arrancar: nada se configura a mano |
 | `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)) |
 | `web` | El frontend compilado y el gateway hacia las APIs |
 
@@ -32,6 +33,45 @@ servicios/   las tres APIs (FastAPI) y su infraestructura común
 db/          migraciones, semilla y pruebas del esquema
 docs/        enunciado y diseño del modelo lógico
 ```
+
+## Identidad (Keycloak)
+
+Las APIs no implementan login: lo hace Keycloak, que corre como contenedor más del compose. Su realm
+(`medicitas`), roles, *clients* y usuarios de prueba se importan de
+[keycloak/realm-export.json](keycloak/realm-export.json) al arrancar, sin pasos manuales. Consola de
+administración: http://localhost:8081 (usuario y contraseña de `KEYCLOAK_ADMIN*` en `.env`, no son
+credenciales de la aplicación).
+
+Los 18 usuarios de prueba son los mismos de la semilla de la base (su `id` en Keycloak es igual al
+`keycloak_sub` que ya trae `db/seed/001_catalogos.sql`), con la contraseña **`medicitas123`**. Por ejemplo:
+
+| Usuario (Keycloak) | Rol | Clínica |
+|---|---|---|
+| `plataforma` | ADM_PLATAFORMA | — |
+| `san-rafael-admin` | ADM_CLINICA | Clínica San Rafael |
+| `san-rafael-recepcion` | RECEPCION | Clínica San Rafael |
+| `san-rafael-laura-mendez` | PROFESIONAL | Clínica San Rafael |
+
+(y lo mismo para `del-valle-*` y `los-robles-*`; la lista completa está en el propio
+`realm-export.json`).
+
+Para pedir un token y llamar a la API (reemplaza `<usuario>`):
+
+```bash
+TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=medicitas-api \
+  -d username=<usuario> -d password=medicitas123 | jq -r .access_token)
+
+curl -s http://localhost:8080/api/agenda/salud -H "Authorization: Bearer $TOKEN"
+```
+
+(`grant_type=password` es cómodo para pruebas y para la colección de peticiones; en un login real del
+frontend sería *authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae
+configurado para cuando el frontend deje de usar datos en memoria.)
+
+Cómo se asocia cada identidad con su clínica, y el resto de las decisiones de este módulo (por qué no se
+valida `aud`, por qué el realm no persiste datos propios) están documentadas en
+[docs/diseno-modelo-logico.md](docs/diseno-modelo-logico.md#10-identidad-delegada-keycloak).
 
 ## Decisiones de diseño
 

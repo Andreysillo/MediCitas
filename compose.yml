@@ -61,6 +61,44 @@ services:
       db:
         condition: service_healthy
 
+  # Identidad delegada (RF17, núcleo "Identidad delegada"). Realm, roles, clients y usuarios de prueba se
+  # importan de keycloak/realm-export.json al arrancar: nada se configura a mano por consola. Sin volumen de
+  # datos a propósito: cada `docker compose up` reimporta el mismo realm, así que los usuarios de prueba
+  # (y sus contraseñas) son siempre los mismos, en cualquier computadora.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?falta KEYCLOAK_ADMIN_PASSWORD en .env}
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      # Solo para abrir la consola de administración del realm en el navegador (usuario KEYCLOAK_ADMIN);
+      # los tres servicios de Python llegan a Keycloak por la red interna, no por este puerto.
+      - "${PUERTO_KEYCLOAK:-8081}:8080"
+    healthcheck:
+      # La imagen no trae curl ni wget. /dev/tcp (bashismo) abre el socket a mano contra el puerto de
+      # administración (KC_HEALTH_ENABLED) y lee la respuesta de /health/ready.
+      test:
+        - CMD
+        - bash
+        - -c
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/9000
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   # Persona A: horarios, bloqueos, disponibilidad y ciclo de vida de la cita (RF5–RF13, RF20).
   agenda:
     <<: *api

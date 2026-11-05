@@ -9,6 +9,8 @@ dependencies = [
     "uvicorn==0.54.0",
     "psycopg[binary]==3.3.7",
     "psycopg-pool==3.3.3",
+    # RF17: valida el JWT de Keycloak contra las llaves públicas del realm (comun/sesion.py).
+    "pyjwt[crypto]==2.10.1",
 ]
 
 [build-system]
