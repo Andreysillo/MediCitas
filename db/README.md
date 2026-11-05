@@ -19,9 +19,10 @@ db/
 | `003_agenda.sql` | `profesional`, `servicio`, `profesional_servicio`, `horario_atencion`, `bloqueo_agenda` |
 | `004_citas.sql` | `paciente`, `cita` con las exclusiones de **I1** e **I2**, `nota_clinica` |
 | `005_auditoria.sql` | `registro_auditoria` (solo la tabla; ver "Pendiente") |
+| `006_funciones_agenda.sql` | `cabe_en_horario()`: la única definición de "la cita cabe en el horario" (I3), usada por la reserva y por los conflictos de RF5 |
 
 Reglas para cambiar el esquema:
-- Un cambio nuevo es **la migración siguiente** (`006_...sql`). Nunca se edita una migración que ya se
+- Un cambio nuevo es **la migración siguiente** (`007_...sql`). Nunca se edita una migración que ya se
   aplicó en alguna base: no se volvería a correr, y cada base quedaría distinta.
 - Las migraciones solo van hacia adelante. Para deshacer algo se escribe otra migración que lo revierta.
 
@@ -74,6 +75,6 @@ SELECT u.keycloak_sub, u.nombre, r.codigo AS rol, c.identificador AS clinica
 
 ## Pendiente
 
-- Índices de la consulta de disponibilidad y su `EXPLAIN` (T15): migración `006`.
+- Índices de la consulta de disponibilidad y su `EXPLAIN` (T15): migración `007`.
 - Roles de base de datos con menor privilegio y la protección de `registro_auditoria` contra `UPDATE`,
   `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23).
