@@ -127,7 +127,7 @@ def crear_app(nombre: str) -> FastAPI:
         inicio = time.perf_counter()
         respuesta = await siguiente(request)
         respuesta.headers["x-request-id"] = _solicitud.get()
-        if request.url.path not in ("/salud", "/listo"):  # los healthchecks llenarían el log
+        if not request.url.path.endswith(("/salud", "/listo")):  # los healthchecks llenarían el log (la ruta lleva el prefijo --root-path)
             log.info(
                 "solicitud",
                 extra={"datos": {
@@ -172,6 +172,14 @@ def crear_app(nombre: str) -> FastAPI:
 
     app.add_exception_handler(StarletteHTTPException, error_http)
     app.add_exception_handler(RequestValidationError, datos_invalidos)
+
+    # Valores que pasan la validación pero no caben en el motor ni en un `datetime`: una fecha en el año 9999 a la que se
+    # le suma la duración, o un texto con un carácter NUL. Es culpa de la solicitud, no del servidor.
+    def valor_fuera_de_rango(request: Request, e: Exception):
+        return JSONResponse({"detalle": "Los datos enviados están fuera del rango permitido"}, status_code=422)
+
+    app.add_exception_handler(psycopg.DataError, valor_fuera_de_rango)
+    app.add_exception_handler(OverflowError, valor_fuera_de_rango)
 
     # Fallos transitorios del motor (bloqueo esperado de más, deadlock que ya no se pudo reintentar): la solicitud
     # es válida y no se aplicó nada; el cliente puede repetirla.

@@ -8,4 +8,8 @@ MENSAJES = {
     "horario_sin_solape": "Ese bloque se solapa con otro del mismo día",
     "cita_sin_solape_profesional": "Ese espacio ya fue tomado",
     "cita_sin_solape_paciente": "El paciente ya tiene otra cita a esa hora",
+    # Las dos de abajo vienen del trigger de la migración 007. La API las detecta antes con un mensaje mejor;
+    # si llegan aquí es que algo saltó esa revisión.
+    "cita_transicion_permitida": "Esa transición de estado no está permitida",
+    "cita_datos_inmutables": "Los datos de una cita no se editan: se reprograma",
 }

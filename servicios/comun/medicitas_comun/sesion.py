@@ -17,8 +17,6 @@ from fastapi import Depends, Header, HTTPException
 
 from .app import CONEXION
 
-ROLES = ("ADM_PLATAFORMA", "ADM_CLINICA", "RECEPCION", "PROFESIONAL")
-
 
 @dataclass(frozen=True)
 class Sesion:
