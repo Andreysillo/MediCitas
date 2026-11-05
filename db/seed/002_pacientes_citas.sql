@@ -170,6 +170,12 @@ END $$;
 -- cita_origen_id. Se hace aquí, antes de las notas, porque una cita reprogramada deja de estar atendida.
 -- Primero se libera la antigua y luego se inserta la nueva: la exclusión se revisa fila por fila y el nuevo
 -- horario podría solaparse con el viejo.
+--
+-- La semilla inventa historia: toma citas que nacieron ATENDIDA y las vuelve REPROGRAMADA, una transición que el
+-- trigger de la migración 007 prohíbe (y con razón). Por eso se apaga solo durante este bloque. Las migraciones
+-- corren antes que la semilla, así que el trigger ya existe aquí.
+ALTER TABLE cita DISABLE TRIGGER cita_protegida;
+
 DO $$
 DECLARE
     cand  record;
@@ -203,6 +209,8 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
+
+ALTER TABLE cita ENABLE TRIGGER cita_protegida;
 
 -- ---------- Notas clínicas ----------
 -- Una de cada tres citas atendidas, escrita poco después de terminar. Texto ficticio y genérico.

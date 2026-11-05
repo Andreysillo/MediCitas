@@ -20,11 +20,14 @@ db/
 | `004_citas.sql` | `paciente`, `cita` con las exclusiones de **I1** e **I2**, `nota_clinica` |
 | `005_auditoria.sql` | `registro_auditoria` (solo la tabla; ver "Pendiente") |
 | `006_funciones_agenda.sql` | `cabe_en_horario()`: la única definición de "la cita cabe en el horario" (I3), usada por la reserva y por los conflictos de RF5 |
+| `007_cita_protegida.sql` | Trigger `cita_protegida`: los estados finales no admiten salida (RF13) y los datos de una cita no se editan (I4) |
 
 Reglas para cambiar el esquema:
-- Un cambio nuevo es **la migración siguiente** (`007_...sql`). Nunca se edita una migración que ya se
+- Un cambio nuevo es **la migración siguiente** (`008_...sql`). Nunca se edita una migración que ya se
   aplicó en alguna base: no se volvería a correr, y cada base quedaría distinta.
 - Las migraciones solo van hacia adelante. Para deshacer algo se escribe otra migración que lo revierta.
+- En una base vacía TODAS las migraciones corren antes que la semilla, así que la semilla debe respetar cualquier
+  restricción nueva. Si una migración la rompe, se ajusta la semilla: ella sí se puede editar.
 
 ## Cómo se cargan
 
@@ -70,11 +73,11 @@ SELECT u.keycloak_sub, u.nombre, r.codigo AS rol, c.identificador AS clinica
   viejo falla.
 - `fin` se calcula con la duración del servicio dentro de la transacción de reserva (I4); el motor solo
   comprueba que `fin > inicio`.
-- El motor no comprueba I3 (horario y bloqueos), que una nota sea de una cita ATENDIDA, ni las transiciones
-  de estado: son lógica de la reserva (RF9 a RF13).
+- El motor no comprueba I3 (horario y bloqueos) ni que una nota sea de una cita ATENDIDA: son lógica de la
+  aplicación. Las transiciones de estado sí tienen una segunda barrera en el motor (migración 007).
 
 ## Pendiente
 
-- Índices de la consulta de disponibilidad y su `EXPLAIN` (T15): migración `007`.
+- Índices de la consulta de disponibilidad y su `EXPLAIN` (T15): migración `008`.
 - Roles de base de datos con menor privilegio y la protección de `registro_auditoria` contra `UPDATE`,
   `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23).

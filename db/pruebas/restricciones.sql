@@ -133,6 +133,26 @@ BEGIN
     PERFORM pg_temp.debe_pasar('I7 tras cancelar, el espacio queda libre de inmediato',
         pg_temp.cita_a('00000000-0000-0000-0000-0000000000cb', p1, pr1, sv1, '09:00', '09:30'));
 
+    -- ===== RF13 e I4: la cita ya guardada solo cambia por transiciones permitidas =====
+    -- c1 quedó CANCELADA arriba: un estado final no admite salida.
+    PERFORM pg_temp.debe_fallar('RF13 una CANCELADA no vuelve a RESERVADA', '23514',
+        $f$UPDATE cita SET estado = 'RESERVADA', cancelada_por = NULL, cancelada_en = NULL, motivo_cancelacion = NULL
+            WHERE id = '00000000-0000-0000-0000-0000000000c1'$f$);
+    PERFORM pg_temp.debe_fallar('RF13 una CANCELADA no cambia ni su motivo', '23514',
+        $f$UPDATE cita SET motivo_cancelacion = 'Otro' WHERE id = '00000000-0000-0000-0000-0000000000c1'$f$);
+    PERFORM pg_temp.debe_pasar('RF13 RESERVADA puede pasar a ATENDIDA',
+        pg_temp.cita_a('00000000-0000-0000-0000-00000000e0d0', p1, pr1, sv1, '20:00', '20:30'));
+    PERFORM pg_temp.debe_pasar('RF13 transición permitida',
+        $f$UPDATE cita SET estado = 'ATENDIDA' WHERE id = '00000000-0000-0000-0000-00000000e0d0'$f$);
+    PERFORM pg_temp.debe_fallar('RF13 una ATENDIDA no pasa a AUSENTE', '23514',
+        $f$UPDATE cita SET estado = 'AUSENTE' WHERE id = '00000000-0000-0000-0000-00000000e0d0'$f$);
+    PERFORM pg_temp.debe_pasar('una cita nueva para las pruebas de I4',
+        pg_temp.cita_a('00000000-0000-0000-0000-00000000e0d1', p1, pr1, sv1, '21:00', '21:30'));
+    PERFORM pg_temp.debe_fallar('I4 el fin de una cita no se edita', '23514',
+        $f$UPDATE cita SET fin = fin + interval '30 minutes' WHERE id = '00000000-0000-0000-0000-00000000e0d1'$f$);
+    PERFORM pg_temp.debe_fallar('I4 el inicio de una cita no se edita', '23514',
+        $f$UPDATE cita SET inicio = inicio - interval '15 minutes' WHERE id = '00000000-0000-0000-0000-00000000e0d1'$f$);
+
     -- ===== CHECK de la cita =====
     PERFORM pg_temp.debe_fallar('fin debe ser posterior a inicio', '23514',
         pg_temp.cita_a('00000000-0000-0000-0000-0000000000cc', p1, pr1, sv1, '11:00', '11:00'));
