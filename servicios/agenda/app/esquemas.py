@@ -1,6 +1,6 @@
-"""Forma de lo que entra y sale de la API de horarios y bloqueos (RF5, RF6). FastAPI los usa para validar y para /docs."""
+"""Forma de lo que entra y sale de la API de la agenda (horarios, bloqueos y disponibilidad). FastAPI los usa para validar y para /docs."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -10,7 +10,7 @@ from pydantic import AwareDatetime, BaseModel, Field, StringConstraints, model_v
 Hora = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["08:00"])]
 
 
-class ProfesionalGestionable(BaseModel):
+class ProfesionalResumen(BaseModel):
     id: UUID
     nombre: str
     especialidad: str
@@ -71,3 +71,24 @@ class Bloqueo(BaseModel):
 
 class HorarioEliminado(BaseModel):
     conflictos: list[CitaEnConflicto]
+
+
+# ---------- Disponibilidad (RF7, RF8) ----------
+
+
+class EspaciosDelDia(BaseModel):
+    profesional_id: UUID
+    servicio_id: UUID
+    fecha: date
+    duracion_minutos: int
+    espacios: list[datetime] = Field(description="Instantes en que puede empezar la cita, en orden")
+
+
+class DisponibilidadDia(BaseModel):
+    fecha: date
+    espacios: list[datetime]
+
+
+class DisponibilidadDeProfesional(BaseModel):
+    profesional: ProfesionalResumen
+    dias: list[DisponibilidadDia]

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from medicitas_comun import Sesion, conexion
 
 from . import conflictos
-from .esquemas import Horario, HorarioEliminado, NuevoHorario, ProfesionalGestionable
+from .esquemas import Horario, HorarioEliminado, NuevoHorario, ProfesionalResumen
 from .permisos import profesional_accesible, puede_gestionar
 
 router = APIRouter(tags=["RF5 · Horarios"])
@@ -15,7 +15,7 @@ router = APIRouter(tags=["RF5 · Horarios"])
 _COLUMNAS = "id, profesional_id, dia_semana, to_char(hora_inicio, 'HH24:MI') AS hora_inicio, to_char(hora_fin, 'HH24:MI') AS hora_fin"
 
 
-@router.get("/profesionales", response_model=list[ProfesionalGestionable])
+@router.get("/profesionales", response_model=list[ProfesionalResumen])
 def profesionales_gestionables(sesion: Sesion = Depends(puede_gestionar), con=Depends(conexion)):
     """Los profesionales cuyo horario puede gestionar quien consulta: todos los de su clínica, o solo él mismo."""
     return con.execute(
