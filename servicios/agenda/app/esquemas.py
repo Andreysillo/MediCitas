@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, Field, StringConstraints, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 # "08:00", no "8:00" ni "08:00:30": con ceros a la izquierda, comparar el texto es comparar la hora.
 Hora = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["08:00"])]
@@ -92,3 +92,38 @@ class DisponibilidadDia(BaseModel):
 class DisponibilidadDeProfesional(BaseModel):
     profesional: ProfesionalResumen
     dias: list[DisponibilidadDia]
+
+
+# ---------- Citas (RF9) ----------
+
+
+class SolicitudReserva(BaseModel):
+    """Lo único que envía el cliente. No lleva `fin` (lo fija el servicio, I4) ni `clinica_id` (lo fija la sesión, I5):
+    `extra="forbid"` hace que enviarlos sea un error 422 y no un dato que se ignora en silencio."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    paciente_id: UUID
+    profesional_id: UUID
+    servicio_id: UUID
+    inicio: AwareDatetime
+
+    @model_validator(mode="after")
+    def en_minutos_exactos(self):
+        if self.inicio.second or self.inicio.microsecond:
+            raise ValueError("El inicio debe ser en minutos exactos")
+        return self
+
+
+class Cita(BaseModel):
+    id: UUID
+    paciente_id: UUID
+    profesional_id: UUID
+    servicio_id: UUID
+    inicio: datetime
+    fin: datetime
+    estado: str
+    creada_por: UUID
+    creada_en: datetime
+    paciente: str
+    servicio: str

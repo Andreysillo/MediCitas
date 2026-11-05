@@ -6,7 +6,7 @@ desenlace y estados) y RF20 (agenda del día). Es el único servicio que escribe
 
 from medicitas_comun import crear_app
 
-from . import bloqueos, disponibilidad, horarios
+from . import bloqueos, citas, disponibilidad, horarios
 
 app = crear_app("agenda")
 
@@ -14,4 +14,5 @@ app = crear_app("agenda")
 app.include_router(horarios.router)
 app.include_router(bloqueos.router)
 app.include_router(disponibilidad.router)
-# Siguientes: citas (RF9 a RF13), agenda del día (RF20).
+app.include_router(citas.router)
+# Siguientes: reprogramar, cancelar y desenlace (RF10 a RF13), agenda del día (RF20).
