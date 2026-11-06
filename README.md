@@ -39,7 +39,7 @@ docs/        enunciado y diseño del modelo lógico
 Las APIs no implementan login: lo hace Keycloak, que corre como contenedor más del compose. Su realm
 (`medicitas`), roles, *clients* y usuarios de prueba se importan de
 [keycloak/realm-export.json](keycloak/realm-export.json) al arrancar, sin pasos manuales. Consola de
-administración: http://localhost:8081 (usuario y contraseña de `KEYCLOAK_ADMIN*` en `.env`, no son
+administración: http://localhost:8080/auth/admin (usuario y contraseña de `KEYCLOAK_ADMIN*` en `.env`, no son
 credenciales de la aplicación).
 
 Los 18 usuarios de prueba son los mismos de la semilla de la base (su `id` en Keycloak es igual al
@@ -62,8 +62,10 @@ TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-conn
   -d grant_type=password -d client_id=medicitas-api \
   -d username=<usuario> -d password=medicitas123 | jq -r .access_token)
 
-curl -s http://localhost:8080/api/agenda/salud -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8080/api/agenda/profesionales -H "Authorization: Bearer $TOKEN"
 ```
+
+Con `san-rafael-admin` devuelve los profesionales de su clínica; sin token, 401; con `san-rafael-recepcion`, 403.
 
 (`grant_type=password` es cómodo para pruebas y para la colección de peticiones; en un login real del
 frontend sería *authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae

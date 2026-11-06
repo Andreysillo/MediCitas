@@ -24,6 +24,7 @@ from uuid import UUID
 import jwt
 from fastapi import Depends, Header, HTTPException
 from jwt import PyJWKClient
+from jwt.exceptions import PyJWKClientConnectionError
 
 from .app import CONEXION
 
@@ -38,10 +39,10 @@ class Sesion:
 @lru_cache
 def _cliente_jwks() -> PyJWKClient:
     """Un cliente por proceso: PyJWKClient cachea las llaves públicas del realm y solo vuelve a pedirlas al
-    JWKS si aparece un `kid` que no conoce (por ejemplo, tras rotar las llaves). KEYCLOAK_ISSUER es la URL
-    del realm vista desde dentro del compose, por ejemplo http://keycloak:8080/realms/medicitas."""
-    emisor = os.environ["KEYCLOAK_ISSUER"]
-    return PyJWKClient(f"{emisor}/protocol/openid-connect/certs")
+    JWKS si aparece un `kid` que no conoce (por ejemplo, tras rotar las llaves). KEYCLOAK_JWKS_URL es la dirección
+    INTERNA del compose; KEYCLOAK_ISSUER, la pública que viene en el token. timeout: esto corre con una conexión
+    del pool tomada, así que un Keycloak caído no debe retenerla los 30 s por defecto."""
+    return PyJWKClient(os.environ["KEYCLOAK_JWKS_URL"], timeout=3)
 
 
 def _sub_del_token(autorizacion: str | None) -> str:
@@ -65,8 +66,14 @@ def _sub_del_token(autorizacion: str | None) -> str:
             issuer=os.environ["KEYCLOAK_ISSUER"],
             options={"verify_aud": False},
         )
+    except PyJWKClientConnectionError:
+        # No es culpa del cliente: el token puede ser válido, pero no se pudo comprobar.
+        raise HTTPException(503, "No se pudo validar el token, intenta de nuevo")
     except jwt.PyJWTError as e:
         raise HTTPException(401, f"Token inválido: {e}")
+    # El id_token lleva la misma firma y el mismo emisor, pero dice quién inició sesión, no qué puede hacer.
+    if datos.get("typ") != "Bearer":
+        raise HTTPException(401, "Se esperaba un token de acceso")
     sub = datos.get("sub")
     if not sub:
         raise HTTPException(401, "El token no trae identificador de usuario")

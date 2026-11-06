@@ -1,9 +1,9 @@
 # MediCitas completo con un solo comando:  cp .env.example .env  &&  docker compose up -d --build
 #
 # Orden de arranque (lo controla depends_on):
-#   db  →  migraciones (aplica el esquema y termina)  →  agenda, plataforma, auditoria  →  web
-# Solo `web` publica un puerto. Las APIs y la base quedan en la red interna del compose; el navegador llega a
-# las APIs a través de web, en /api/<servicio>/.
+#   db  →  migraciones (aplica el esquema y termina)  →  agenda, plataforma, auditoria
+#   web y keycloak arrancan por su cuenta: las APIs solo necesitan a Keycloak cuando llega el primer token.
+# Las APIs y la base quedan en la red interna del compose. El navegador entra por `web`: /api/<servicio>/ y /auth/.
 name: medicitas
 
 # Lo que comparten los tres servicios de Python. `<<: *api` copia este bloque en cada uno.
@@ -13,9 +13,13 @@ x-api: &api
     # Hoy los tres usan el mismo usuario de la base. Cuando existan los roles de menor privilegio (T19),
     # cada servicio recibe aquí el suyo y el código no cambia.
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    # "desarrollo": la identidad llega en la cabecera X-Usuario-Id, SIN validar. Solo mientras no exista Keycloak
-    # (T17 y T18). Con otro valor, los servicios rechazan toda solicitud con 401. Ver comun/medicitas_comun/sesion.py.
-    AUTH_MODO: ${AUTH_MODO:-desarrollo}
+    # "keycloak": valida el JWT. "desarrollo": confía en la cabecera X-Usuario-Id, SIN validar; nunca debe ser el
+    # valor por defecto. Con otro valor se rechaza todo con 401. Ver comun/medicitas_comun/sesion.py.
+    AUTH_MODO: ${AUTH_MODO:-keycloak}
+    # Dos URL distintas a propósito. ISSUER es el `iss` que Keycloak escribe en el token: la dirección PÚBLICA, igual
+    # para todos. JWKS_URL es de donde las APIs bajan las llaves: la dirección INTERNA de la red del compose.
+    KEYCLOAK_ISSUER: http://localhost:${PUERTO_WEB:-8080}/auth/realms/medicitas
+    KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/medicitas/protocol/openid-connect/certs
   depends_on:
     migraciones:
       condition: service_completed_successfully
@@ -73,11 +77,16 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?falta KEYCLOAK_ADMIN_PASSWORD en .env}
       KC_HEALTH_ENABLED: "true"
+      # Fija el `iss` de los tokens. Sin esto Keycloak lo arma con la URL de cada solicitud, y un token pedido por
+      # :8081 y otro por el gateway tendrían emisores distintos. BACKCHANNEL_DYNAMIC deja que las APIs le hablen por
+      # la red interna (keycloak:8080) aunque la dirección pública sea otra.
+      KC_HOSTNAME: http://localhost:${PUERTO_WEB:-8080}/auth
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     ports:
-      # Solo para abrir la consola de administración del realm en el navegador (usuario KEYCLOAK_ADMIN);
-      # los tres servicios de Python llegan a Keycloak por la red interna, no por este puerto.
+      # Acceso directo, sin pasar por el gateway. La consola de administración redirige a /auth/admin en `web`,
+      # porque KC_HOSTNAME es la dirección pública. Las APIs llegan a Keycloak por la red interna, no por aquí.
       - "${PUERTO_KEYCLOAK:-8081}:8080"
     healthcheck:
       # La imagen no trae curl ni wget. /dev/tcp (bashismo) abre el socket a mano contra el puerto de
@@ -97,7 +106,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M   # recién arrancado ya usa unos 420 MiB
 
   # Persona A: horarios, bloqueos, disponibilidad y ciclo de vida de la cita (RF5–RF13, RF20).
   agenda:
