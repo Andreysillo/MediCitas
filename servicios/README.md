@@ -44,10 +44,35 @@ servicio la necesite parecida.
 Una ruta que necesita saber quién llama recibe `sesion: Sesion = Depends(sesion_de_clinica)` y toma de ahí la
 clínica y el rol. **La clínica nunca se lee de la solicitud** (I5).
 
-Hoy, mientras no exista Keycloak, `AUTH_MODO=desarrollo` (compose) hace que la identidad llegue en la cabecera
-`X-Usuario-Id`, sin validar: **no es seguro** y sirve solo para desarrollar. Con cualquier otro valor, todo
-responde 401. Cuando B entregue la validación del JWT (T17 y T18), solo cambia el cuerpo de `sesion_actual`
-en [comun/medicitas_comun/sesion.py](comun/medicitas_comun/sesion.py); las rutas no se tocan.
+Todo pasa por `sesion_actual`, en [comun/medicitas_comun/sesion.py](comun/medicitas_comun/sesion.py). Una ruta no sabe
+cómo se autenticó nadie: solo recibe el usuario, la clínica y el rol. Por eso agregar Keycloak no cambió ninguna ruta.
+
+| `AUTH_MODO` | Quién dice la identidad | Dónde se usa |
+|---|---|---|
+| `keycloak` (por defecto) | Un JWT en `Authorization: Bearer ...` | El sistema real |
+| `desarrollo` | La cabecera `X-Usuario-Id`, **sin validar: no es seguro** | Solo `pruebas-agenda` |
+| Cualquier otro | Nadie: todo responde 401 | |
+
+Con Keycloak, cada solicitud sigue estos pasos:
+
+1. **Se valida el token:** la firma contra las llaves públicas del realm, el emisor, que no esté vencido y que sea un token
+   de acceso (`typ: Bearer`). Un token que no pase responde 401.
+2. **Se busca al usuario** por `keycloak_sub = sub` en la tabla `usuario`. De esa fila salen la clínica y el rol: la base es
+   la fuente de verdad, no los roles que trae el token.
+3. **Se revisa `activo`** en cada solicitud, así que una baja corta el acceso de inmediato (403), sin esperar a que el token
+   venza.
+
+Dos direcciones distintas, a propósito:
+
+- `KEYCLOAK_ISSUER` es la dirección **pública** (`http://localhost:8080/auth/...`): el emisor escrito en el token, fijado con
+  `KC_HOSTNAME` para que sea el mismo sin importar por dónde se pidió.
+- `KEYCLOAK_JWKS_URL` es la dirección **interna** (`http://keycloak:8080/...`): de donde las APIs bajan las llaves.
+
+Las llaves quedan en memoria. Si Keycloak se cae, los tokens ya emitidos siguen funcionando y no se pueden pedir nuevos. Si
+además la API se reinicia y no tiene las llaves, responde 503, y se recupera sola cuando Keycloak vuelve.
+
+Las pruebas de `pruebas-agenda` corren en modo `desarrollo`: comprueban las reglas de negocio, no el token. Las pruebas de
+permisos con tokens reales son la tarea T29.
 
 ## Pruebas
 
