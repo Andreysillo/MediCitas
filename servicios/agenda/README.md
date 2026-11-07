@@ -26,6 +26,7 @@ app/
   citas.py           RF9 a RF13 (rutas y máquina de estados)
   reserva.py         las reglas de un espacio, compartidas por reservar y reprogramar
   espacios.py        la consulta SQL que calcula los espacios libres (la más ejecutada del sistema)
+  cache.py           caché de RF7 en Redis y su invalidación (I8)
   conflictos.py      citas que un bloqueo o un cambio de horario deja sin cubrir
   permisos.py        quién puede tocar los horarios de quién + el bloqueo de fila sobre el profesional
   esquemas.py        forma de lo que entra y sale (validación y /docs)
@@ -44,6 +45,57 @@ quepa; (3) se descarta lo que se traslapa con una cita vigente o con un bloqueo,
   transacción, porque entre la consulta y la reserva otra persona pudo tomarlo. La palabra final la tiene la
   restricción de exclusión del motor (I1).
 
+## Caché de disponibilidad (RF7, I8)
+
+Redis guarda copias de la respuesta de RF7. La verdad sigue en PostgreSQL: Redis se puede vaciar en cualquier momento sin
+perder nada, y por eso corre sin disco. Un respaldo reviviría copias que quizá ya son falsas.
+
+La clave lleva todo lo que cambia la respuesta y nada más:
+
+```
+disp:{clinica}:{profesional}:v{version}:{servicio}:{duracion}:{fecha}
+```
+
+Cada consulta de RF7 hace esto, en este orden (`app/disponibilidad.py` y `app/cache.py`):
+
+1. Valida en la base el servicio y el profesional, con la clínica de la sesión (I5).
+2. Lee la versión de la agenda del profesional.
+3. Busca la copia. Si está, quita las horas ya pasadas y responde.
+4. Si no está, calcula en la base y guarda la copia por 5 minutos.
+
+**Invalidar es subir la versión del profesional.** Las copias anteriores quedan bajo claves que nadie vuelve a buscar, y el
+TTL las borra. Con un solo `INCR` se invalidan todas las fechas y todos los servicios de esa agenda.
+
+| Operación | ¿Sube la versión? | Por qué |
+|---|---|---|
+| Reservar, cancelar | Sí | Cambia qué espacios están libres |
+| Reprogramar | Sí, de los dos profesionales si son distintos | Se libera un espacio y se ocupa otro |
+| Crear o quitar un horario o un bloqueo | Sí | Cambia qué espacios existen |
+| Desenlace | No | ATENDIDA y AUSENTE siguen ocupando su espacio |
+
+Lo que quedó decidido y por qué:
+
+| Decisión | Razón |
+|---|---|
+| Invalidar después del `COMMIT` y antes de la respuesta | Antes del commit, una consulta podría volver a guardar la agenda sin ver el cambio. Antes de la respuesta, para que quien reservó ya no vea su espacio libre. Las rutas lo piden con `cache.invalidar_tras_commit`. |
+| Leer la versión antes de calcular | Si una consulta guarda tarde una copia vieja, queda con el número anterior y nadie la encuentra. |
+| Validar antes de leer la caché | Nadie de otra clínica llega a una copia, y un profesional desactivado deja de aparecer al instante. Cuesta dos lecturas pequeñas en la base por consulta. |
+| La duración va en la clave | `plataforma` puede editar un servicio sin tocar Redis: con otra duración, la clave es otra. |
+| Filtrar el pasado al leer | El tiempo no dispara ninguna invalidación, pero solo quita espacios. |
+| TTL de 5 minutos | Es una red de seguridad, no lo que cumple I8: limita cuánto dura un error si falla un `INCR` y limpia las versiones viejas. |
+| Sin caché en RF8, `ignorar_cita` y la reserva | RF8 mezcla varios profesionales y rangos. `ignorar_cita` muestra libre un espacio ocupado: guardada, se la daría a todos. La reserva necesita la verdad, no una copia. |
+| Límite de 250 ms por acceso a Redis | Con el contenedor apagado cada solicitud tardaba unos 4 s, porque el tiempo del socket no cubre la resolución del nombre. Con el límite, unos 280 ms (medido). |
+| Si Redis falla, se sigue sin él | Las consultas salen de la base y las escrituras responden normal, con un aviso en el log. Un 503 tras el commit haría que el cliente repita algo que sí ocurrió. |
+
+Qué incoherencia queda, y cuánto dura:
+
+- **Entre el `COMMIT` y el `INCR`:** unos milisegundos en que otro cliente aún lee la copia anterior. Si intenta reservar ese espacio, el motor responde 409 (I1). Quien reservó nunca lo ve, porque la respuesta sale después del `INCR`.
+- **Si falla el `INCR` y Redis sigue con sus datos** (por ejemplo, un corte de red): la copia vieja dura como mucho 5 minutos. Si Redis se reinició, no pasa nada: quedó vacío.
+- **Si cambia la zona horaria de una clínica:** lo edita `plataforma`, no va en la clave y no invalida. También dura como mucho 5 minutos.
+
+Toda ruta nueva que cambie citas vigentes, horarios o bloqueos debe llamar a `cache.invalidar_tras_commit`. Las pruebas están
+en `tests/test_cache.py`, con Redis real y commits de verdad.
+
 ## Cómo se reserva (RF9)
 
 Una sola transacción, en `READ COMMITTED`, con este orden (detalle y porqué en [app/reserva.py](app/reserva.py)):
@@ -52,7 +104,7 @@ Una sola transacción, en `READ COMMITTED`, con este orden (detalle y porqué en
 2. Validar: existen en la clínica de la sesión (I5), servicio y profesional activos, el profesional atiende el servicio (RF4).
 3. Calcular `fin` con la duración del servicio (I4) y comprobar que cabe en el horario y no cae en un bloqueo (I3).
 4. Insertar. Si el espacio o el paciente ya están ocupados, **el motor rechaza** (I1, I2) y la API responde 409.
-5. `COMMIT` y solo entonces la respuesta.
+5. `COMMIT`, invalidar la caché y solo entonces la respuesta.
 
 Lo que quedó decidido y por qué:
 

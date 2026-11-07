@@ -34,6 +34,12 @@ db/          migraciones, semilla y pruebas del esquema
 docs/        enunciado y diseño del modelo lógico
 ```
 
+## Caché de disponibilidad (Redis)
+
+RF7 se sirve desde Redis, que corre en el Compose sin disco y sin puerto publicado. Es solo una copia: si se apaga, la
+agenda sigue funcionando desde PostgreSQL, algo más lenta. Clave, invalidación y qué incoherencia queda:
+[servicios/agenda/README.md](servicios/agenda/README.md#caché-de-disponibilidad-rf7-i8).
+
 ## Identidad (Keycloak)
 
 Las APIs no implementan login: lo hace Keycloak, que corre como contenedor más del compose. Su realm
