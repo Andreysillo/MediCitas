@@ -67,9 +67,24 @@ def conexion(request: Request):
 
     Al terminar la ruta sin error se hace COMMIT; si lanza una excepción, ROLLBACK. Así una reserva nunca
     queda a medias. Las rutas la piden con `CONEXION`, no con `Depends(conexion)`: ver abajo.
+
+    Lo que una ruta registre con `despues_del_commit` corre aquí, solo si el COMMIT se hizo. Si la ruta falló, la
+    excepción sale del `with` y el ciclo de abajo nunca se alcanza.
     """
+    request.state.tras_commit = []
     with request.app.state.pool.connection() as con:
         yield con
+    for tarea in request.state.tras_commit:
+        try:
+            tarea()
+        except Exception as e:
+            # Los datos ya quedaron confirmados: responder un error haría que el cliente repita algo que sí ocurrió.
+            log.warning("falló una tarea posterior al commit", extra={"datos": {"error": type(e).__name__}})
+
+
+def despues_del_commit(request: Request, tarea) -> None:
+    """Pide ejecutar `tarea()` cuando esta solicitud haya confirmado sus datos y antes de enviar la respuesta."""
+    request.state.tras_commit.append(tarea)
 
 
 # scope="function": el COMMIT ocurre ANTES de enviar la respuesta. Con el valor por defecto ("request") FastAPI

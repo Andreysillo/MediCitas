@@ -3,15 +3,17 @@
 import os
 import threading
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 import psycopg
 import pytest
 from conftest import servidor_real
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
-from medicitas_comun import CONEXION, conexion, reintentar_si_deadlock
+from medicitas_comun import CONEXION, conexion, despues_del_commit, reintentar_si_deadlock
 from psycopg import errors
+from psycopg_pool import ConnectionPool
 
 from app.main import app
 
@@ -121,3 +123,42 @@ def test_el_commit_ocurre_antes_de_enviar_la_respuesta():
     with servidor_real(mini) as url:
         assert httpx.get(f"{url}/ruta").status_code == 200
         assert terminado == [True], "la respuesta llegó antes de que terminara el código posterior al yield (¿falta scope=\"function\"?)"
+
+
+def test_las_tareas_corren_tras_el_commit_y_solo_si_hubo_commit():
+    """Con una base real: la tarea debe ver la fila ya confirmada desde OTRA conexión, y no correr si la ruta falla."""
+    mini, vistos = FastAPI(), []
+
+    @asynccontextmanager
+    async def con_pool(aplicacion):
+        with ConnectionPool(os.environ["DATABASE_URL"], min_size=1, max_size=2) as aplicacion.state.pool:
+            yield
+
+    mini.router.lifespan_context = con_pool
+    leer = "SELECT count(*) FROM especialidad WHERE nombre = 'tarea-tras-commit'"
+
+    def contar():
+        with psycopg.connect(os.environ["DATABASE_URL"]) as otra:
+            vistos.append(otra.execute(leer).fetchone()[0])
+
+    @mini.post("/bien")
+    def bien(request: Request, con=CONEXION):
+        clinica = con.execute("SELECT id FROM clinica LIMIT 1").fetchone()[0]
+        con.execute("INSERT INTO especialidad (clinica_id, nombre) VALUES (%s, 'tarea-tras-commit')", (clinica,))
+        despues_del_commit(request, contar)
+        despues_del_commit(request, lambda: 1 / 0)      # una tarea rota no convierte el éxito en un error
+
+    @mini.post("/mal")
+    def mal(request: Request, con=CONEXION):
+        despues_del_commit(request, contar)
+        raise HTTPException(409, "rechazada")
+
+    try:
+        with TestClient(mini) as c:
+            assert c.post("/mal").status_code == 409
+            assert vistos == []
+            assert c.post("/bien").status_code == 200
+            assert vistos == [1]
+    finally:
+        with psycopg.connect(os.environ["DATABASE_URL"]) as otra:
+            otra.execute("DELETE FROM especialidad WHERE nombre = 'tarea-tras-commit'")
