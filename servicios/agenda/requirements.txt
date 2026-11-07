@@ -1,1 +1,2 @@
 # Dependencias propias de este servicio. FastAPI, uvicorn y psycopg ya vienen de comun/.
+redis==7.4.1

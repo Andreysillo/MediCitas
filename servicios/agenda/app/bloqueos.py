@@ -3,10 +3,10 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from medicitas_comun import CONEXION, Sesion
 
-from . import conflictos
+from . import cache, conflictos
 from .esquemas import Bloqueo, NuevoBloqueo
 from .permisos import profesional_accesible, puede_gestionar
 
@@ -28,7 +28,7 @@ def listar_bloqueos(profesional_id: UUID, sesion: Sesion = Depends(puede_gestion
 
 
 @router.post("/profesionales/{profesional_id}/bloqueos", response_model=Bloqueo, status_code=201)
-def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
+def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, request: Request, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Registra el bloqueo. Retira la disponibilidad hacia adelante, pero NO cancela citas: las reservadas
     que caen dentro vuelven en `conflictos` para que recepción las reprograme."""
     if nuevo.fin <= datetime.now(timezone.utc):
@@ -36,6 +36,7 @@ def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = De
     # El bloqueo de fila va ANTES de insertar y de buscar conflictos: si una reserva entra a la vez, o ya
     # estaba confirmada y aparece en la lista, o espera y encuentra el bloqueo (ver profesional_accesible).
     profesional_accesible(con, sesion, profesional_id, bloquear=True)
+    cache.invalidar_tras_commit(request, profesional_id)
     bloqueo = con.execute(
         """INSERT INTO bloqueo_agenda (clinica_id, profesional_id, inicio, fin, motivo)
            VALUES (%s, %s, %s, %s, %s) RETURNING id, profesional_id, inicio, fin, motivo""",
@@ -46,7 +47,7 @@ def crear_bloqueo(profesional_id: UUID, nuevo: NuevoBloqueo, sesion: Sesion = De
 
 
 @router.delete("/bloqueos/{bloqueo_id}", status_code=204)
-def eliminar_bloqueo(bloqueo_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
+def eliminar_bloqueo(bloqueo_id: UUID, request: Request, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     fila = con.execute(
         "SELECT profesional_id FROM bloqueo_agenda WHERE id = %s AND clinica_id = %s", (bloqueo_id, sesion.clinica_id)
     ).fetchone()
@@ -54,4 +55,5 @@ def eliminar_bloqueo(bloqueo_id: UUID, sesion: Sesion = Depends(puede_gestionar)
         raise HTTPException(404, "Bloqueo no encontrado")
     profesional_accesible(con, sesion, fila["profesional_id"])
     con.execute("DELETE FROM bloqueo_agenda WHERE id = %s", (bloqueo_id,))
+    cache.invalidar_tras_commit(request, fila["profesional_id"])
     return Response(status_code=204)

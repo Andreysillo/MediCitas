@@ -2,10 +2,10 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from medicitas_comun import CONEXION, Sesion
 
-from . import conflictos
+from . import cache, conflictos
 from .esquemas import Horario, HorarioEliminado, NuevoHorario, ProfesionalResumen
 from .permisos import profesional_accesible, puede_gestionar
 
@@ -39,13 +39,14 @@ def listar_horarios(profesional_id: UUID, sesion: Sesion = Depends(puede_gestion
 
 
 @router.post("/profesionales/{profesional_id}/horarios", response_model=Horario, status_code=201)
-def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
+def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, request: Request, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Agrega un bloque. Un mismo día puede tener varios, pero no solapados.
 
     No se revisa el solape aquí: lo rechaza la restricción `horario_sin_solape` del motor (409). Revisarlo antes
     con un SELECT dejaría una ventana en la que dos solicitudes simultáneas pasan la revisión y se solapan.
     """
     profesional_accesible(con, sesion, profesional_id)
+    cache.invalidar_tras_commit(request, profesional_id)
     return con.execute(
         f"""INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin)
             VALUES (%s, %s, %s, %s, %s) RETURNING {_COLUMNAS}""",
@@ -54,7 +55,7 @@ def crear_horario(profesional_id: UUID, nuevo: NuevoHorario, sesion: Sesion = De
 
 
 @router.delete("/horarios/{horario_id}", response_model=HorarioEliminado)
-def eliminar_horario(horario_id: UUID, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
+def eliminar_horario(horario_id: UUID, request: Request, sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
     """Quita un bloque. Rige hacia adelante: no cancela citas, pero devuelve las reservas que quedaron fuera
     de toda atención (I3) para que recepción las reprograme."""
     fila = con.execute(
@@ -65,4 +66,5 @@ def eliminar_horario(horario_id: UUID, sesion: Sesion = Depends(puede_gestionar)
     # El bloqueo va ANTES de borrar y de calcular los conflictos; ver profesional_accesible.
     profesional_accesible(con, sesion, fila["profesional_id"], bloquear=True)
     con.execute("DELETE FROM horario_atencion WHERE id = %s", (horario_id,))
+    cache.invalidar_tras_commit(request, fila["profesional_id"])
     return {"conflictos": conflictos.fuera_de_horario(con, sesion.clinica_id, fila["profesional_id"])}

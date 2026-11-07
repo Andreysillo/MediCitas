@@ -1,12 +1,13 @@
 """RF7 y RF8: espacios disponibles de un profesional en una fecha, y de un servicio en un rango de fechas."""
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
+from . import cache
 from .esquemas import DisponibilidadDeProfesional, EspaciosDelDia
 from .espacios import espacios_libres
 
@@ -54,17 +55,26 @@ def disponibilidad_de_profesional(
         # Reservarlo igual fallaría por la clave foránea hacia profesional_servicio (RF4): se avisa antes.
         raise HTTPException(422, "Ese profesional no atiende ese servicio")
 
-    filas = espacios_libres(
-        con, clinica_id=sesion.clinica_id, servicio_id=servicio_id, zona_horaria=servicio["zona_horaria"],
-        duracion_minutos=servicio["duracion_minutos"], desde=fecha, dias=1, profesional_id=profesional_id,
-        ignorar_cita=ignorar_cita,
-    )
+    def calcular() -> list[datetime]:
+        filas = espacios_libres(
+            con, clinica_id=sesion.clinica_id, servicio_id=servicio_id, zona_horaria=servicio["zona_horaria"],
+            duracion_minutos=servicio["duracion_minutos"], desde=fecha, dias=1, profesional_id=profesional_id,
+            ignorar_cita=ignorar_cita,
+        )
+        return [f["inicio"] for f in filas]
+
+    # La caché va DESPUÉS de las validaciones: quien no puede ver esta agenda nunca llega a ella (I5). `ignorar_cita`
+    # no la usa: esa respuesta muestra libre un espacio ocupado, y guardada se la daría a todos los demás (I8).
+    if ignorar_cita:
+        espacios = calcular()
+    else:
+        espacios = cache.espacios(sesion.clinica_id, profesional_id, servicio_id, servicio["duracion_minutos"], fecha, calcular)
     return {
         "profesional_id": profesional_id,
         "servicio_id": servicio_id,
         "fecha": fecha,
         "duracion_minutos": servicio["duracion_minutos"],
-        "espacios": [f["inicio"] for f in filas],
+        "espacios": espacios,
     }
 
 

@@ -2,14 +2,15 @@
 #
 # Orden de arranque (lo controla depends_on):
 #   db  →  migraciones (aplica el esquema y termina)  →  agenda, plataforma, auditoria
-#   web y keycloak arrancan por su cuenta: las APIs solo necesitan a Keycloak cuando llega el primer token.
+#   web, keycloak y redis arrancan por su cuenta: las APIs solo necesitan a Keycloak cuando llega el primer token,
+#   y agenda funciona sin Redis, solo que más lento.
 # Las APIs y la base quedan en la red interna del compose. El navegador entra por `web`: /api/<servicio>/ y /auth/.
 name: medicitas
 
 # Lo que comparten los tres servicios de Python. `<<: *api` copia este bloque en cada uno.
 x-api: &api
   restart: unless-stopped
-  environment:
+  environment: &api-env
     # Hoy los tres usan el mismo usuario de la base. Cuando existan los roles de menor privilegio (T19),
     # cada servicio recibe aquí el suyo y el código no cambia.
     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -108,10 +109,31 @@ services:
         limits:
           memory: 768M   # recién arrancado ya usa unos 420 MiB
 
+  # Caché de disponibilidad (RF7, I8). Sin disco a propósito: al reiniciar queda vacía, y eso siempre es correcto; un
+  # respaldo reviviría copias que quizá ya son falsas. Sin puerto publicado: solo agenda le habla.
+  redis:
+    image: redis:7.4.12-alpine
+    restart: unless-stopped
+    # volatile-lru: al llenarse borra solo claves con TTL (las copias), nunca los números de versión.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   # Persona A: horarios, bloqueos, disponibilidad y ciclo de vida de la cita (RF5–RF13, RF20).
+  # No depende de redis a propósito: si Redis cae, agenda sigue atendiendo desde la base.
   agenda:
     <<: *api
     build: { context: ./servicios, args: { SERVICIO: agenda } }
+    environment:
+      <<: *api-env
+      REDIS_URL: redis://redis:6379/0
 
   # Pruebas del servicio de agenda contra la base real (cada prueba se deshace con ROLLBACK):
   #   docker compose --profile pruebas run --rm pruebas-agenda
@@ -122,9 +144,12 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       AUTH_MODO: desarrollo
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       migraciones:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   # Persona B: clínicas, usuarios, catálogo, profesionales, pacientes y notas (RF1–RF4, RF14–RF16).
   plataforma:

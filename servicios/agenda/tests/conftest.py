@@ -19,10 +19,12 @@ os.environ.setdefault("AUTH_MODO", "desarrollo")
 import psycopg
 import pytest
 import uvicorn
+from fastapi import Request
 from fastapi.testclient import TestClient
 from medicitas_comun import conexion
 from psycopg.rows import dict_row
 
+from app import cache
 from app.main import app
 
 # Costa Rica no tiene horario de verano: siempre UTC-6. Las clínicas de prueba usan esa zona.
@@ -73,8 +75,13 @@ def con():
 
 
 @pytest.fixture
-def cliente(con):
-    def conexion_de_prueba():
+def cliente(con, monkeypatch):
+    # Sin caché: estas pruebas escriben con SQL directo y nunca confirman, así que nada invalidaría. La caché se prueba
+    # en test_cache.py, con Redis y commits de verdad.
+    monkeypatch.setattr(cache, "_redis", lambda: None)
+
+    def conexion_de_prueba(request: Request):
+        request.state.tras_commit = []
         # Un punto de guardado por solicitud: si la ruta falla (409, 422...), solo se deshace esa solicitud
         # y la prueba puede seguir usando la misma conexión.
         with con.transaction():

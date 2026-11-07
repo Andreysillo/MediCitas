@@ -2,9 +2,10 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from medicitas_comun import CONEXION, Sesion, reintentar_si_deadlock, sesion_de_clinica
 
+from . import cache
 from .esquemas import Cancelacion, Cita, Desenlace, Error, Reprogramacion, SolicitudReserva
 from .reserva import validar_y_calcular_fin
 
@@ -83,7 +84,7 @@ _ERRORES = {
 @router.post("/citas", response_model=Cita, status_code=201, responses={
     k: v for k, v in _ERRORES.items() if k != 404
 } | {409: {"model": Error, "description": "Espacio ya tomado, o el paciente ya tiene otra cita a esa hora"}})
-def reservar(solicitud: SolicitudReserva, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
+def reservar(solicitud: SolicitudReserva, request: Request, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
     """RF9. Tres desenlaces: concedida (201), espacio ya tomado (409) y solicitud inválida (422).
 
     Una sola transacción, en READ COMMITTED: validar (con los bloqueos de fila) e insertar. Quien decide entre dos reservas
@@ -97,12 +98,13 @@ def reservar(solicitud: SolicitudReserva, sesion: Sesion = Depends(puede_agendar
         return vista(con, insertar(con, sesion, solicitud.paciente_id, solicitud.profesional_id, solicitud.servicio_id,
                                    solicitud.inicio, fin))
 
+    cache.invalidar_tras_commit(request, solicitud.profesional_id)
     # Si el motor aborta la transacción por deadlock, se repite entera (hasta 3 veces) antes de responder 503.
     return reintentar_si_deadlock(con, una_vez)
 
 
 @router.post("/citas/{cita_id}/reprogramar", response_model=Cita, status_code=201, responses=_ERRORES)
-def reprogramar(cita_id: UUID, destino: Reprogramacion, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
+def reprogramar(cita_id: UUID, destino: Reprogramacion, request: Request, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
     """RF10. Mueve la cita a otro espacio. No la edita: la antigua pasa a REPROGRAMADA y se crea otra que apunta a ella.
 
     Los dos cambios van en UNA transacción, así que nadie ve la cita duplicada ni los dos espacios ocupados, y si el nuevo
@@ -125,6 +127,7 @@ def reprogramar(cita_id: UUID, destino: Reprogramacion, sesion: Sesion = Depends
         # En este orden: la exclusión se revisa fila por fila, así que el espacio viejo debe liberarse ANTES de insertar.
         # Si no, moverla 15 minutos chocaría consigo misma.
         con.execute("UPDATE cita SET estado = 'REPROGRAMADA' WHERE id = %s", (cita_id,))
+        cache.invalidar_tras_commit(request, cita["profesional_id"], destino.profesional_id)   # pueden ser dos agendas
         return vista(con, insertar(con, sesion, cita["paciente_id"], destino.profesional_id, cita["servicio_id"],
                                    destino.inicio, fin, origen=cita_id))
 
@@ -132,7 +135,7 @@ def reprogramar(cita_id: UUID, destino: Reprogramacion, sesion: Sesion = Depends
 
 
 @router.post("/citas/{cita_id}/cancelar", response_model=Cita, responses=_ERRORES)
-def cancelar(cita_id: UUID, datos: Cancelacion, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
+def cancelar(cita_id: UUID, datos: Cancelacion, request: Request, sesion: Sesion = Depends(puede_agendar), con=CONEXION):
     """RF11. Deja el motivo y quién canceló. El espacio se libera en este mismo COMMIT (I7)."""
     cita = buscar_cita(con, sesion, cita_id, bloquear=True)
     exigir_transicion(cita["estado"], "CANCELADA")
@@ -140,13 +143,16 @@ def cancelar(cita_id: UUID, datos: Cancelacion, sesion: Sesion = Depends(puede_a
         "UPDATE cita SET estado = 'CANCELADA', cancelada_por = %s, cancelada_en = now(), motivo_cancelacion = %s WHERE id = %s",
         (sesion.usuario_id, datos.motivo, cita_id),
     )
+    cache.invalidar_tras_commit(request, cita["profesional_id"])
     return vista(con, cita_id)
 
 
 @router.post("/citas/{cita_id}/desenlace", response_model=Cita, responses=_ERRORES)
 def registrar_desenlace(cita_id: UUID, datos: Desenlace, sesion: Sesion = Depends(sesion_de_clinica), con=CONEXION):
     """RF12. Atendida o ausente, solo una vez pasada la hora de inicio. Según la matriz lo registran el administrador de
-    clínica, recepción y el profesional: todos los roles con clínica, por eso basta `sesion_de_clinica`."""
+    clínica, recepción y el profesional: todos los roles con clínica, por eso basta `sesion_de_clinica`.
+
+    No invalida la caché: ATENDIDA y AUSENTE siguen ocupando su espacio, así que la disponibilidad no cambia."""
     cita = buscar_cita(con, sesion, cita_id, bloquear=True)
     exigir_transicion(cita["estado"], datos.desenlace)
     if cita["futura"]:
