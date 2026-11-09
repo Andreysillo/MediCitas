@@ -7,7 +7,9 @@ cada lectura o escritura de notas y datos de contacto (RF18).
 
 from medicitas_comun import crear_app
 
+from . import alta
+
 app = crear_app("plataforma")
 
 # Cada grupo de requisitos va en su propio router dentro de app/, y se registra aquí:
-# app.include_router(clinicas.router)
+app.include_router(alta.router)
