@@ -32,6 +32,7 @@ frontend/    React + Vite; en Docker lo sirve nginx
 servicios/   las tres APIs (FastAPI) y su infraestructura común
 db/          migraciones, semilla y pruebas del esquema
 docs/        enunciado y diseño del modelo lógico
+keycloak/        modulo keycloak para identidad y acceso (autenticación)
 ```
 
 ## Caché de disponibilidad (Redis)
