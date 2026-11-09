@@ -11,13 +11,14 @@ docker compose ps             # todo "healthy"; migraciones "Exited (0)"
 ```
 
 Abre http://localhost:8080. La documentación de cada API está en `/api/agenda/docs`, `/api/plataforma/docs`
-y `/api/auditoria/docs`.
+y `/api/auditoria/docs`, y resumida, con roles y errores, en [docs/api.md](docs/api.md).
 
 | Contenedor | Qué hace |
 |---|---|
 | `db` | PostgreSQL 16. Sin puerto publicado |
 | `migraciones` | Aplica el esquema y la semilla nuevos, y termina ([db/](db/README.md)) |
 | `keycloak` | Proveedor de identidad (RF17). Importa `keycloak/realm-export.json` al arrancar: nada se configura a mano |
+| `redis` | Caché de la disponibilidad (RF7). Sin disco y sin puerto publicado: si se apaga, agenda sigue desde la base |
 | `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)) |
 | `web` | El frontend compilado y el gateway hacia las APIs |
 
@@ -31,7 +32,7 @@ y `/api/auditoria/docs`.
 frontend/    React + Vite; en Docker lo sirve nginx
 servicios/   las tres APIs (FastAPI) y su infraestructura común
 db/          migraciones, semilla y pruebas del esquema
-docs/        enunciado y diseño del modelo lógico
+docs/        enunciado, diseño del modelo lógico y referencia de la API
 keycloak/        modulo keycloak para identidad y acceso (autenticación)
 ```
 
