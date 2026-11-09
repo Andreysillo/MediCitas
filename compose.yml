@@ -39,6 +39,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
+    ports:
+      - "${PUERTO_BD}:5432"
     volumes:
       # Volumen nombrado: los datos sobreviven a `docker compose down` (no a `down -v`).
       - datos_postgres:/var/lib/postgresql/data
@@ -155,6 +157,24 @@ services:
   plataforma:
     <<: *api
     build: { context: ./servicios, args: { SERVICIO: plataforma } }
+    environment:
+      <<: *api-env
+      # RF1: crea la cuenta del primer administrador con la API de administración de Keycloak (red interna).
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?falta KEYCLOAK_ADMIN_PASSWORD en .env}
+
+  # Pruebas del servicio de plataforma:  docker compose --profile pruebas run --rm pruebas-plataforma
+  pruebas-plataforma:
+    build: { context: ./servicios, target: pruebas, args: { SERVICIO: plataforma } }
+    profiles: [pruebas]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_MODO: desarrollo
+    depends_on:
+      migraciones:
+        condition: service_completed_successfully
 
   # Consulta de la bitácora y reportes (RF19, RF21). Solo lee.
   auditoria:
