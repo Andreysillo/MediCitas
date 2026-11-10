@@ -17,6 +17,7 @@ tocar el proveedor externo, que no se puede deshacer con un ROLLBACK) y luego se
 from fastapi import APIRouter, Depends, HTTPException
 from medicitas_comun import CONEXION, Sesion, sesion_actual
 
+from .cuentas import crear_cuenta
 from .esquemas import AltaClinica, ClinicaResumen, NuevaClinica
 from .keycloak import KeycloakAdmin, keycloak_admin
 
@@ -75,36 +76,19 @@ def crear_clinica(
         (nueva.nombre, nueva.identificador, nueva.zona_horaria),
     ).fetchone()
 
-    # --- Paso 2: el usuario administrador, con sub provisional ------------------------------------------------------
-    # La clínica sale del paso 1, nunca del cuerpo de la solicitud (I5). `SELECT ... FROM rol` busca el id del rol
-    # por su código, así no se "quema" el número 2 en el código. `gen_random_uuid()::text` es el sub provisional.
-    admin = con.execute(
-        """INSERT INTO usuario (clinica_id, rol_id, keycloak_sub, nombre)
-           SELECT %s, r.id, gen_random_uuid()::text, %s FROM rol r WHERE r.codigo = 'ADM_CLINICA'
-           RETURNING id, nombre, activo""",
-        (clinica["id"], nueva.admin_nombre),
-    ).fetchone()
-
-    # --- Paso 3: la cuenta en Keycloak ------------------------------------------------------------------------------
-    # Aquí MediCitas no guarda ni procesa la contraseña: se la entrega a Keycloak, marcada como temporal (el
-    # administrador debe cambiarla al entrar). `get_secret_value()` es la única forma de leer un SecretStr,
-    # lo que evita que se imprima por accidente en un log. Si Keycloak falla, esta línea lanza HTTPException
-    # (409 o 503) y la transacción completa se deshace: no queda ni la clínica ni el usuario.
-    sub = kc.crear_usuario(
-        usuario=nueva.admin_usuario,
-        nombre=nueva.admin_nombre,
-        contrasena=nueva.admin_contrasena.get_secret_value(),
+    # --- Pasos 2 a 4: el usuario administrador y su cuenta en Keycloak ---------------------------------------------
+    # Se hace en cuentas.crear_cuenta, que también usa RF2: inserta la fila con un sub provisional, crea la cuenta
+    # en Keycloak (con la contraseña temporal; `get_secret_value()` es la única forma de leer un SecretStr, así no se
+    # imprime por accidente) y reemplaza el sub por el real. La clínica sale del paso 1, nunca de la solicitud (I5).
+    # Si Keycloak falla lanza HTTPException (409 o 503) y la transacción completa se deshace: ni clínica ni usuario.
+    admin = crear_cuenta(
+        con, kc,
+        clinica_id=clinica["id"],
         rol="ADM_CLINICA",
+        nombre=nueva.admin_nombre,
+        usuario=nueva.admin_usuario,
+        contrasena=nueva.admin_contrasena.get_secret_value(),
     )
-
-    # --- Paso 4: enlazar la fila con la cuenta real -----------------------------------------------------------------
-    # Desde ahora, el `sub` de los tokens de este administrador encuentra su fila (ver sesion.py). Si este UPDATE
-    # fallara, la cuenta recién creada en Keycloak no tiene dónde apuntar, así que se retira antes de propagar el error.
-    try:
-        con.execute("UPDATE usuario SET keycloak_sub = %s WHERE id = %s", (sub, admin["id"]))
-    except Exception:
-        kc.eliminar_usuario(sub)
-        raise
 
     # El COMMIT lo hace la dependencia CONEXION al terminar esta función, antes de enviar la respuesta.
     # El rol no vino en el RETURNING del paso 2, por eso se agrega a mano.

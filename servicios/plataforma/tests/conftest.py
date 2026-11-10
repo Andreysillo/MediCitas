@@ -85,10 +85,28 @@ def mundo(con):
         (f"existente-{uuid.uuid4().hex[:8]}",),
     ).fetchone()["id"]
 
+    otra = con.execute(
+        "INSERT INTO clinica (nombre, identificador, zona_horaria) VALUES ('Otra', %s, 'America/Costa_Rica') RETURNING id",
+        (f"otra-{uuid.uuid4().hex[:8]}",),
+    ).fetchone()["id"]
+    especialidad = con.execute(
+        "INSERT INTO especialidad (clinica_id, nombre) VALUES (%s, 'General') RETURNING id", (clinica,)
+    ).fetchone()["id"]
+
     class Mundo:
+        clinica_id = clinica
         plataforma = _usuario(con, "ADM_PLATAFORMA")
         admin_clinica = _usuario(con, "ADM_CLINICA", clinica)
+        segundo_admin = _usuario(con, "ADM_CLINICA", clinica)
         recepcion = _usuario(con, "RECEPCION", clinica)
         profesional = _usuario(con, "PROFESIONAL", clinica)
+        # Un usuario de OTRA clínica: el administrador de `clinica` no debe poder verlo ni tocarlo (I5).
+        admin_otra = _usuario(con, "ADM_CLINICA", otra)
+        recepcion_otra = _usuario(con, "RECEPCION", otra)
 
+    # `profesional` es un profesional registrado (fila en la tabla profesional), como lo deja RF4.
+    con.execute(
+        "INSERT INTO profesional (clinica_id, usuario_id, especialidad_id, numero_colegiado) VALUES (%s, %s, %s, 'COL-1')",
+        (clinica, Mundo.profesional, especialidad),
+    )
     return Mundo
