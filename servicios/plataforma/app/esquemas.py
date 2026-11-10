@@ -133,6 +133,38 @@ class Servicio(BaseModel):
     activo: bool
 
 
+# ---------- Profesionales (RF4) ----------
+
+
+class DatosProfesional(BaseModel):
+    """Lo que se puede editar de un profesional. `extra="forbid"`: la clínica sale de la sesión (I5)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    especialidad_id: UUID
+    numero_colegiado: str = Field(min_length=3, max_length=20)
+    servicios_ids: list[UUID] = Field(max_length=200, description="Exactamente los servicios que atiende; los demás quedan deshabilitados")
+
+
+class NuevoProfesional(DatosProfesional):
+    usuario_id: UUID = Field(description="Un usuario activo de la clínica con rol PROFESIONAL que aún no esté registrado")
+
+
+class Profesional(BaseModel):
+    id: UUID
+    nombre: str
+    especialidad_id: UUID
+    especialidad: str
+    numero_colegiado: str
+    activo: bool
+    servicios_ids: list[UUID]
+
+
+class UsuarioLibre(BaseModel):
+    id: UUID
+    nombre: str
+
+
 class CambioDeActivo(BaseModel):
     usuario: UsuarioVista
     citas_pendientes: int = Field(description="Citas reservadas a futuro del profesional dado de baja; recepción las reprograma")

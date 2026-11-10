@@ -7,7 +7,7 @@ cada lectura o escritura de notas y datos de contacto (RF18).
 
 from medicitas_comun import crear_app
 
-from . import alta, catalogo, usuarios
+from . import alta, catalogo, profesionales, usuarios
 
 app = crear_app("plataforma")
 
@@ -15,3 +15,4 @@ app = crear_app("plataforma")
 app.include_router(alta.router)
 app.include_router(usuarios.router)
 app.include_router(catalogo.router)
+app.include_router(profesionales.router)
