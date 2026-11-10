@@ -86,6 +86,53 @@ class UsuarioVista(BaseModel):
     yo: bool
 
 
+# ---------- Catálogo de servicios (RF3) ----------
+
+NombreCatalogo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=60)]
+# Mismos límites que el frontend: una consulta de menos de 5 minutos o de más de 8 horas es casi seguro un error de captura.
+Duracion = Annotated[int, Field(ge=5, le=480, description="Minutos que la cita ocupa en la agenda (I4)")]
+
+
+class NuevaEspecialidad(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: NombreCatalogo
+
+
+class Especialidad(BaseModel):
+    id: UUID
+    nombre: str
+
+
+class NuevoServicio(BaseModel):
+    """`extra="forbid"`: la clínica sale de la sesión (I5), así que mandar `clinica_id` es un 422."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: NombreCatalogo
+    duracion_minutos: Duracion
+    especialidad_id: UUID
+
+
+class CambioServicio(BaseModel):
+    """La especialidad no se cambia: los profesionales ya asociados al servicio la comparten (RF4)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: NombreCatalogo
+    duracion_minutos: Duracion
+    activo: bool
+
+
+class Servicio(BaseModel):
+    id: UUID
+    nombre: str
+    duracion_minutos: int
+    especialidad_id: UUID
+    especialidad: str
+    activo: bool
+
+
 class CambioDeActivo(BaseModel):
     usuario: UsuarioVista
     citas_pendientes: int = Field(description="Citas reservadas a futuro del profesional dado de baja; recepción las reprograma")
