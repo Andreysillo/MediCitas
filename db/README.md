@@ -21,6 +21,7 @@ db/
 | `005_auditoria.sql` | `registro_auditoria` (solo la tabla; ver "Pendiente") |
 | `006_funciones_agenda.sql` | `cabe_en_horario()`: la única definición de "la cita cabe en el horario" (I3), usada por la reserva y por los conflictos de RF5 |
 | `007_cita_protegida.sql` | Trigger `cita_protegida`: los estados finales no admiten salida (RF13) y los datos de una cita no se editan (I4) |
+| `008_indices.sql` | Índices de bloqueos por profesional y rango, y de citas reservadas pendientes (T15; ver «Índices») |
 
 Reglas para cambiar el esquema:
 - Un cambio nuevo es **la migración siguiente** (`008_...sql`). Nunca se edita una migración que ya se
@@ -64,6 +65,46 @@ SELECT u.keycloak_sub, u.nombre, r.codigo AS rol, c.identificador AS clinica
   FROM usuario u JOIN rol r ON r.id = u.rol_id LEFT JOIN clinica c ON c.id = u.clinica_id;
 ```
 
+## Índices
+
+Medidos con volumen: la semilla más [pruebas/historial_sintetico.sql](pruebas/historial_sintetico.sql), que suma dos
+años de historial (unas 83 mil citas) y 2 000 clínicas con 25 bloqueos cada una (50 mil). Así se ve un SaaS con
+muchos clientes. El script es [servicios/agenda/tests/medir_consultas.py](../servicios/agenda/tests/medir_consultas.py),
+y corre el mismo SQL que la API, 50 veces cada consulta:
+
+```bash
+docker compose exec -T db sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/pruebas/historial_sintetico.sql   # SOLO en una base de prueba
+docker compose --profile pruebas run --rm pruebas-agenda python -m tests.medir_consultas          # agrega --plan para ver los planes
+```
+
+| Consulta | Antes | Después | Qué cambió |
+|---|---|---|---|
+| RF7: un profesional, un día | 4,39 ms | ~1,5 ms | `bloqueo_agenda` se leía entera; ahora usa `bloqueo_por_profesional_y_rango` |
+| RF8: toda la clínica, 7 días | 25,0 ms | ~6 ms | El mismo índice, y la consulta descarta antes a quien no atiende el servicio |
+| RF9: ¿la reserva cae en un bloqueo? | 2,66 ms | ~0,1 ms | `bloqueo_por_profesional_y_rango` |
+| RF6: listar bloqueos | 3,88 ms | ~0,1 ms | Ídem |
+| RF5 y RF6: citas reservadas en conflicto | 4,29 ms | ~0,65 ms | `cita_reservadas_por_profesional`: leía 6 867 citas para devolver 86 |
+| RF2 (plataforma): pendientes al dar de baja | 2,25 ms | ~0,12 ms | Ídem |
+
+Medianas en la misma computadora; "antes" es el código y el esquema sin T15. Con solo la semilla (unas 2 000 citas) no hay
+diferencia: RF7 tarda unos 1,6 ms y RF8 unos 14 ms con los dos códigos, porque con tablas chicas el motor prefiere leerlas
+enteras, y acierta.
+
+Lo que se decidió y por qué:
+
+| Decisión | Razón |
+|---|---|
+| Ningún índice nuevo para las citas de RF7 y RF8 | Ya las sirve el GiST de la restricción de I1 (`cita_sin_solape_profesional`): misma expresión y mismo predicado. Otro índice sería redundante y haría más lentas las reservas |
+| GiST, y no B-tree, para `bloqueo_agenda` | Las consultas usan `&&` entre rangos, que un B-tree no sirve. Es la misma expresión que en `cita` |
+| Índice parcial `WHERE estado = 'RESERVADA'` | Una cita deja de estar reservada al resolverse, así que el índice guarda solo la agenda pendiente: 40 kB contra 10 MB del GiST de I1. No crece con el historial |
+| La consulta de espacios no se prepara (`prepare=False`) | Preparada, Postgres puede pasarse a un plan genérico que no sabe si `profesional` es NULL y lee las tablas enteras. Medido forzándolo: RF7 de 1,2 a 99 ms y RF8 de 24 a 1 384 ms. Planificar cada vez cuesta alrededor de 1 ms |
+| Profesionales habilitados en un CTE `MATERIALIZED` | Con muchas clínicas, el motor generaba los espacios de todos los profesionales y descartaba al final a quien no atiende el servicio: 1 120 búsquedas en vez de 280 |
+
+Límites conocidos: `CREATE INDEX` bloquea las escrituras de la tabla mientras se construye, porque `aplicar.sh` corre cada
+migración en una transacción. En producción, con tablas grandes, se usaría `CREATE INDEX CONCURRENTLY`, que no puede ir
+dentro de una transacción. Las consultas de B que aún no existen (historial del paciente, bitácora) necesitarán sus propios
+índices cuando se escriban.
+
 ## Para quien escribe la lógica de las citas
 
 - Un solape se rechaza con SQLSTATE `23P01` (I1 e I2) y una pareja profesional-servicio no habilitada con
@@ -78,6 +119,5 @@ SELECT u.keycloak_sub, u.nombre, r.codigo AS rol, c.identificador AS clinica
 
 ## Pendiente
 
-- Índices de la consulta de disponibilidad y su `EXPLAIN` (T15): migración `008`.
 - Roles de base de datos con menor privilegio y la protección de `registro_auditoria` contra `UPDATE`,
   `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23).

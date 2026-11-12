@@ -25,7 +25,7 @@ app/
   horarios.py        RF5          bloqueos.py     RF6          disponibilidad.py   RF7 y RF8 (rutas)
   citas.py           RF9 a RF13 (rutas y máquina de estados)
   reserva.py         las reglas de un espacio, compartidas por reservar y reprogramar
-  espacios.py        la consulta SQL que calcula los espacios libres (la más ejecutada del sistema)
+  espacios.py        la consulta SQL que calcula los espacios libres (la más ejecutada del sistema; índices en db/README.md)
   cache.py           caché de RF7 en Redis y su invalidación (I8)
   conflictos.py      citas que un bloqueo o un cambio de horario deja sin cubrir
   permisos.py        quién puede tocar los horarios de quién + el bloqueo de fila sobre el profesional
