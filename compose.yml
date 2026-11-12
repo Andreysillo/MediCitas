@@ -159,7 +159,8 @@ services:
     build: { context: ./servicios, args: { SERVICIO: plataforma } }
     environment:
       <<: *api-env
-      # RF1: crea la cuenta del primer administrador con la API de administración de Keycloak (red interna).
+      # RF1 y RF2: crea la cuenta del primer administrador de cada clínica (RF1) y las de los usuarios que se agregan
+      # después (RF2) con la API de administración de Keycloak, por la red interna. RF3 y RF4 no la usan.
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?falta KEYCLOAK_ADMIN_PASSWORD en .env}

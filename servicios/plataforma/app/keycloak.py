@@ -3,6 +3,12 @@
 MediCitas no implementa el inicio de sesión ni guarda contraseñas: aquí solo se le pide a Keycloak que cree la
 cuenta del primer administrador. La contraseña viaja a Keycloak y no se guarda ni se registra.
 
+A QUÉ REQUISITOS SIRVE:
+  - RF1: crea la cuenta del primer administrador de una clínica nueva.
+  - RF2: crea la cuenta de cada usuario que el administrador agrega después (mismo código, vía cuentas.py).
+  - RF17 (identidad delegada): es la razón de que MediCitas no guarde contraseñas ni escriba su propio login.
+  - RF3 y RF4 NO usan este archivo (no tocan identidades).
+
 Cómo encaja con el resto:
   - alta.py (RF1) recibe este cliente como dependencia (`Depends(keycloak_admin)`) y llama a `crear_usuario`.
   - Es OTRA cosa distinta de comun/sesion.py. Aquel archivo VALIDA tokens de quien ya inició sesión (lee las llaves

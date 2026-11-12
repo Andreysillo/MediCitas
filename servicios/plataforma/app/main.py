@@ -7,12 +7,15 @@ cada lectura o escritura de notas y datos de contacto (RF18).
 
 from medicitas_comun import crear_app
 
-from . import alta, catalogo, profesionales, usuarios
+from . import alta, catalogo, pacientes, profesionales, usuarios
 
 app = crear_app("plataforma")
 
 # Cada grupo de requisitos va en su propio router dentro de app/, y se registra aquí:
-app.include_router(alta.router)
-app.include_router(usuarios.router)
-app.include_router(catalogo.router)
-app.include_router(profesionales.router)
+app.include_router(alta.router)           # RF1  POST/GET /clinicas
+app.include_router(usuarios.router)       # RF2  /usuarios
+app.include_router(catalogo.router)       # RF3  /servicios (y /especialidades, que los servicios necesitan)
+app.include_router(profesionales.router)  # RF4  /profesionales
+app.include_router(pacientes.router)      # RF14  /pacientes
+# Pendientes de este servicio: RF15 (notas clínicas), RF16 (historial del paciente).
+# Archivos de apoyo sin rutas: cuentas.py (lo usan RF1 y RF2), keycloak.py (cliente de Keycloak, lo usa cuentas.py).

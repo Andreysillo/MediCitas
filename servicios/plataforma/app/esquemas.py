@@ -1,16 +1,32 @@
-"""Forma de lo que entra y sale de la API de plataforma. FastAPI los usa para validar y para /docs."""
+"""Forma de lo que entra y sale de la API de plataforma. FastAPI los usa para validar y para /docs.
 
-from datetime import datetime
+MAPA DEL ARCHIVO (cada sección dice a qué requisito pertenece):
+  - RF1  Alta de clínicas ........ NuevaClinica, Clinica, Administrador, AltaClinica, ClinicaResumen
+  - RF2  Usuarios de la clínica .. RolDeClinica, NuevoUsuario, CambioRol, CambioActivo, UsuarioVista, CambioDeActivo
+  - RF3  Catálogo de servicios ... NombreCatalogo, Duracion, NuevaEspecialidad, Especialidad, NuevoServicio,
+                                   CambioServicio, Servicio
+  - RF4  Profesionales ........... DatosProfesional, NuevoProfesional, Profesional, UsuarioLibre
+  - RF14 Pacientes ............... DatosPaciente, PacienteLista, ListaPacientes, Paciente
+`Nombre` (justo debajo) lo comparten RF1 y RF2. Todos los modelos de ENTRADA usan `extra="forbid"`: mandar un campo que
+no existe (por ejemplo `clinica_id`) es un 422 y no se ignora en silencio, porque la clínica sale de la sesión (I5).
+"""
+
+import re
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, field_validator
 
 Nombre = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=80)]
 
 
+# ---------- Alta de clínicas (RF1) ----------
+
+
 class NuevaClinica(BaseModel):
-    """RF1. `extra="forbid"`: mandar `id` o `clinica_id` es un 422, no un dato que se ignora en silencio."""
+    """RF1. `extra="forbid"`: mandar `id` o `clinica_id` es un 422, no un dato que se ignora en silencio.
+    Reúne los datos de la clínica (nombre, identificador, zona horaria) y los del primer administrador (`admin_*`)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -163,6 +179,67 @@ class Profesional(BaseModel):
 class UsuarioLibre(BaseModel):
     id: UUID
     nombre: str
+
+
+# ---------- Pacientes (RF14) ----------
+
+
+class DatosPaciente(BaseModel):
+    """RF14. `extra="forbid"`: la clínica sale de la sesión (I5), así que mandar `clinica_id` o `id` es un 422.
+    Teléfono y correo son opcionales; una cadena vacía se guarda como NULL."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    identificacion: str = Field(min_length=3, max_length=30, description="Cédula u otro documento. Única dentro de la clínica")
+    nombre: Nombre
+    fecha_nacimiento: date
+    telefono: str | None = Field(default=None, max_length=30)
+    correo: str | None = Field(default=None, max_length=120)
+
+    @field_validator("fecha_nacimiento")
+    @classmethod
+    def _fecha_razonable(cls, f: date) -> date:
+        if f > date.today() or f < date(1900, 1, 1):
+            raise ValueError("La fecha de nacimiento está fuera de rango")
+        return f
+
+    @field_validator("telefono")
+    @classmethod
+    def _telefono(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        if not re.fullmatch(r"[+\d][\d\s-]{6,}", v):
+            raise ValueError("El teléfono no es válido")
+        return v
+
+    @field_validator("correo")
+    @classmethod
+    def _correo(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.lower()
+        if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", v):
+            raise ValueError("El correo no es válido")
+        return v
+
+
+class PacienteLista(BaseModel):
+    """Lo que sale al listar: sin teléfono ni correo, que solo salen al abrir la ficha (y eso se audita)."""
+
+    id: UUID
+    nombre: str
+    identificacion: str
+    fecha_nacimiento: date
+
+
+class ListaPacientes(BaseModel):
+    total: int = Field(description="Coincidencias en la clínica, aunque `pacientes` traiga solo las primeras")
+    pacientes: list[PacienteLista]
+
+
+class Paciente(PacienteLista):
+    telefono: str | None
+    correo: str | None
 
 
 class CambioDeActivo(BaseModel):

@@ -1,6 +1,10 @@
 """Crear un usuario de una clínica: su fila en la base y su cuenta en Keycloak, como una sola operación.
 
 Lo comparten RF1 (el primer administrador de una clínica nueva) y RF2 (los usuarios que el administrador agrega después).
+  - Lo llama alta.py (RF1) con rol ADM_CLINICA y la clínica recién creada.
+  - Lo llama usuarios.py → `crear_usuario` (RF2) con el rol elegido y la clínica de la sesión.
+Es la parte de RF2 que dice «un usuario pertenece a exactamente una clínica»: siempre recibe UNA `clinica_id`, y la
+tabla `usuario` lo refuerza con su CHECK (ver 002_identidad.sql).
 
 Orden: primero la fila en la base con un `keycloak_sub` provisional, después la cuenta en Keycloak, y al final se
 reemplaza el sub provisional por el real. Así los errores de la base (que se pueden deshacer con ROLLBACK) salen

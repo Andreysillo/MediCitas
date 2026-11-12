@@ -1,5 +1,19 @@
 """RF2: gestionar los usuarios de una clínica, con alta, baja lógica y asignación de rol.
 
+QUÉ RUTA CUMPLE CADA PALABRA DEL ENUNCIADO:
+  - «alta»                  → POST  /usuarios                 (`crear_usuario`, apoyada en cuentas.py y keycloak.py)
+  - «baja lógica»           → PATCH /usuarios/{id}/activo     (`cambiar_activo`; `activo: true` reactiva)
+  - «asignación de rol»     → PATCH /usuarios/{id}/rol        (`cambiar_rol`)
+  - (para ver el resultado) → GET   /usuarios                 (`listar_usuarios`; no lo pide el enunciado)
+  - «pertenece a exactamente una clínica, salvo el adm. de plataforma» → la clínica sale de la sesión y el rol
+    ADM_PLATAFORMA no es asignable (RolDeClinica en esquemas.py); el CHECK de la tabla `usuario` lo refuerza.
+  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica`.
+Reglas propias que el enunciado no dicta pero el diseño necesita: nadie cambia su propio rol ni se da de baja; la clínica
+conserva siempre un administrador activo; un profesional registrado (RF4) no cambia de rol; la baja de un profesional lo
+saca de la disponibilidad (RF7) sin cancelar sus citas.
+Relación con otros requisitos: RF17 (la baja corta el acceso porque sesion.py revisa `activo`), RF4 (profesionales.py
+bloquea la misma fila de usuario para no registrar a alguien cuyo rol está cambiando).
+
 Solo el administrador de la clínica (matriz de permisos). La clínica sale SIEMPRE de la sesión: un usuario de otra
 clínica responde 404 igual que uno inexistente (I5). Las credenciales viven en Keycloak; aquí solo se guarda quién
 pertenece a la clínica y con qué rol. La fuente de verdad del rol es la tabla `usuario` (ver comun/sesion.py).

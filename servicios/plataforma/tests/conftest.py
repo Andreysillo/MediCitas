@@ -93,6 +93,13 @@ def mundo(con):
         "INSERT INTO especialidad (clinica_id, nombre) VALUES (%s, 'General') RETURNING id", (clinica,)
     ).fetchone()["id"]
 
+    # Qué requisito usa cada pieza:
+    #   plataforma ............ RF1 (quien da de alta) y los 403 de RF2 a RF4
+    #   admin_clinica ......... RF2 a RF4 (quien opera)
+    #   segundo_admin ......... RF2 (reglas de «queda otro administrador»)
+    #   recepcion, profesional  los 403 de RF2 a RF4; `profesional` además es un profesional YA registrado (RF2 no le
+    #                          deja cambiar de rol; RF4 responde 409 si se intenta registrar otra vez)
+    #   admin_otra, recepcion_otra, `otra`  aislamiento entre clínicas (I5) en RF2 a RF4
     class Mundo:
         clinica_id = clinica
         plataforma = _usuario(con, "ADM_PLATAFORMA")

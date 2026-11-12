@@ -1,6 +1,14 @@
 """RF1: dar de alta una clínica con su nombre, su identificador y su zona horaria, creando junto con ella su
 primer usuario administrador.
 
+QUÉ PARTE DEL ENUNCIADO CUMPLE CADA COSA:
+  - «clínica con su nombre, su identificador y su zona horaria» → paso 0 y paso 1 de `crear_clinica`.
+  - «creando junto con ella su primer usuario administrador»    → pasos 2 a 4 (`crear_cuenta`, en cuentas.py).
+  - «junto con ella» = todo o nada                              → una sola transacción (ver «Orden» abajo).
+  - Matriz de permisos: «Alta de clínicas: solo adm. plataforma» → `solo_plataforma` (403 a los demás, RF17).
+  - `listar_clinicas` NO lo pide el enunciado: es apoyo para que la pantalla de plataforma muestre lo que creó.
+Archivos que intervienen: esquemas.py (NuevaClinica, AltaClinica), cuentas.py y keycloak.py (la cuenta del admin).
+
 Orden de las operaciones (todo dentro de UNA transacción de la base):
   1. INSERT de la clínica. Un identificador repetido falla aquí, antes de tocar a Keycloak (409 por el UNIQUE).
   2. INSERT del usuario administrador con un `keycloak_sub` provisional (un UUID aleatorio).

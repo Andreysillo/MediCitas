@@ -1,6 +1,16 @@
 """RF3: mantener el catálogo de servicios de la clínica. Cada servicio lleva nombre, duración en minutos y la
 especialidad que requiere.
 
+QUÉ RUTA CUMPLE CADA PARTE:
+  - «mantener el catálogo» (alta, edición, baja) → POST /servicios, PATCH /servicios/{id} (activo=false es la baja),
+                                                   GET /servicios para listar.
+  - «nombre, duración en minutos» → NuevoServicio / CambioServicio en esquemas.py (duración de 5 a 480).
+  - «la especialidad que requiere» → `especialidad_id` en NuevoServicio. Las especialidades son un catálogo propio de
+    cada clínica, por eso este archivo también trae GET/POST /especialidades (apoyo de RF3: sin ellas no hay a qué apuntar).
+  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica`.
+Relación con otros requisitos: I4 (la duración del servicio fija el tamaño de la cita), RF4 (un profesional solo atiende
+servicios de su especialidad), RF7/RF9 (agenda lee `duracion_minutos` y `activo`).
+
 Solo el administrador de la clínica (matriz de permisos). La clínica sale SIEMPRE de la sesión (I5).
 
 La especialidad es un catálogo propio de cada clínica (ver 002_identidad.sql), así que para poder crear un servicio

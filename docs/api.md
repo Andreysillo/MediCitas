@@ -7,7 +7,7 @@ resume y agrega lo que no se ve allí: los roles, las reglas y el porqué de cad
 | Servicio | Prefijo | Requisitos |
 |---|---|---|
 | Agenda | `/api/agenda` | RF5 a RF13 |
-| Plataforma | `/api/plataforma` | RF1 (RF2 a RF4 y RF14 a RF16 aún sin rutas) |
+| Plataforma | `/api/plataforma` | RF1 y RF14 (RF2 a RF4, RF15 y RF16 aún sin documentar aquí) |
 | Auditoría | `/api/auditoria` | RF19 y RF21, aún sin rutas |
 
 ## Convenciones
@@ -358,6 +358,44 @@ Todas las clínicas, con su número de usuarios activos. No expone ningún dato 
 [{ "id": "fb5ec88a-…", "nombre": "Clínica San Rafael", "identificador": "san-rafael",
    "zona_horaria": "America/Costa_Rica", "creada_en": "2026-11-03T15:00:00Z", "usuarios": 6 }]
 ```
+
+### Pacientes
+
+RF14 · `ADM_CLINICA` y `RECEPCION` leen y escriben · `PROFESIONAL` solo lee · `ADM_PLATAFORMA` recibe 403
+
+Un paciente es único por `identificacion` **dentro de su clínica**: la misma persona puede ser paciente de dos clínicas.
+Abrir la ficha (`GET /{id}`), registrar y actualizar quedan en la bitácora (RF18) dentro de la misma transacción. El
+listado no trae teléfono ni correo y por eso no se audita.
+
+| Campo | Tipo | Regla |
+|---|---|---|
+| `identificacion` | texto | 3 a 30 caracteres. Única en la clínica |
+| `nombre` | texto | 3 a 80 caracteres |
+| `fecha_nacimiento` | fecha | Entre 1900-01-01 y hoy |
+| `telefono` | texto | Opcional. Dígitos, espacios y `-`, mínimo 7 caracteres; puede empezar con `+` |
+| `correo` | texto | Opcional. Se guarda en minúsculas |
+
+Enviar `id` o `clinica_id` es un 422.
+
+```json
+{ "identificacion": "1-0987-0456", "nombre": "Ana Solís", "fecha_nacimiento": "1990-05-17",
+  "telefono": "8888-1234", "correo": "ana@correo.com" }
+```
+
+**`POST /api/plataforma/pacientes`** → 201 con la ficha (`id`, los campos de arriba).
+**`PUT /api/plataforma/pacientes/{id}`** → 200 con la ficha. Reemplaza todos los campos.
+**`GET /api/plataforma/pacientes/{id}`** → 200 con la ficha. Auditado.
+**`GET /api/plataforma/pacientes?q=texto`** → 200. Busca en nombre e identificación; trae los primeros 50 por nombre.
+
+```json
+{ "total": 1, "pacientes": [{ "id": "…", "nombre": "Ana Solís", "identificacion": "1-0987-0456", "fecha_nacimiento": "1990-05-17" }] }
+```
+
+| Error | Cuándo |
+|---|---|
+| 404 | El paciente no existe en tu clínica (también si es de otra) |
+| 409 | Esa identificación ya la tiene otro paciente de la clínica |
+| 422 | Datos inválidos o campos que sobran |
 
 ---
 

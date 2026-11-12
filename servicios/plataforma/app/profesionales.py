@@ -1,5 +1,17 @@
 """RF4: registrar profesionales con su especialidad y asociarles los servicios que están habilitados para atender.
 
+QUÉ RUTA CUMPLE CADA PARTE:
+  - «registrar profesionales con su especialidad» → POST /profesionales (`registrar_profesional`) y PUT
+    /profesionales/{id} (`actualizar_profesional`, que también permite cambiarla).
+  - «asociarles los servicios que están habilitados» → el campo `servicios_ids` de ambas rutas, que `_aplicar_servicios`
+    traduce a filas de `profesional_servicio`.
+  - «Un profesional atiende solo los servicios que tiene asociados» (sección de entidades del enunciado) → esa tabla,
+    y la clave foránea de `cita` hacia ella lo hace cumplir en el motor.
+  - (para armar la pantalla) GET /profesionales y GET /profesionales/usuarios-libres; no los pide el enunciado.
+  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica`.
+Relación con otros requisitos: RF2 (el profesional ES un usuario con rol PROFESIONAL), RF3 (sus servicios son del
+catálogo y de su especialidad), RF5/RF6 (el horario y los bloqueos cuelgan de la fila `profesional`), RF7/RF9.
+
 Solo el administrador de la clínica (matriz de permisos). La clínica sale SIEMPRE de la sesión (I5).
 
 Un profesional es un USUARIO de la clínica con rol PROFESIONAL al que se le agrega su especialidad, su número de

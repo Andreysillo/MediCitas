@@ -1,3 +1,4 @@
 # Dependencias propias de este servicio. FastAPI, uvicorn y psycopg ya vienen de comun/.
-# RF1: cliente HTTP para la API de administración de Keycloak.
+# RF1 y RF2: cliente HTTP para la API de administración de Keycloak (crear la cuenta del primer administrador
+# de una clínica y las de los usuarios que se agregan después). Lo usa app/keycloak.py.
 httpx==0.28.1
