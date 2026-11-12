@@ -7,6 +7,8 @@ MAPA DEL ARCHIVO (cada sección dice a qué requisito pertenece):
                                    CambioServicio, Servicio
   - RF4  Profesionales ........... DatosProfesional, NuevoProfesional, Profesional, UsuarioLibre
   - RF14 Pacientes ............... DatosPaciente, PacienteLista, ListaPacientes, Paciente
+  - RF15 Nota clínica ............ DatosNota, Nota (MAX_NOTA)
+  - RF16 Historial del paciente .. CitaHistorial
 `Nombre` (justo debajo) lo comparten RF1 y RF2. Todos los modelos de ENTRADA usan `extra="forbid"`: mandar un campo que
 no existe (por ejemplo `clinica_id`) es un 422 y no se ignora en silencio, porque la clínica sale de la sesión (I5).
 """
@@ -240,6 +242,39 @@ class ListaPacientes(BaseModel):
 class Paciente(PacienteLista):
     telefono: str | None
     correo: str | None
+
+
+class CitaHistorial(BaseModel):
+    """RF16: una cita del paciente con su estado. Sin nota clínica: esa solo la lee su profesional."""
+
+    id: UUID
+    inicio: datetime
+    fin: datetime
+    estado: str
+    profesional_id: UUID
+    profesional: str
+    servicio_id: UUID
+    servicio: str
+    motivo_cancelacion: str | None
+
+
+# ---------- Nota clínica (RF15) ----------
+
+MAX_NOTA = 5000
+
+
+class DatosNota(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    contenido: str = Field(min_length=1, max_length=MAX_NOTA)
+
+
+class Nota(BaseModel):
+    id: UUID
+    cita_id: UUID
+    contenido: str
+    creada_en: datetime
+    actualizada_en: datetime
 
 
 class CambioDeActivo(BaseModel):

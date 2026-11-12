@@ -25,7 +25,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
-from .esquemas import DatosPaciente, ListaPacientes, Paciente
+from .esquemas import CitaHistorial, DatosPaciente, ListaPacientes, Paciente
 
 router = APIRouter(prefix="/pacientes", tags=["RF14 · Pacientes"])
 
@@ -96,6 +96,30 @@ def ver_paciente(paciente_id: UUID, sesion: Sesion = Depends(quien_lee), con=CON
         raise HTTPException(404, "Paciente no encontrado")
     _auditar(con, sesion, paciente_id, "LECTURA")
     return fila
+
+
+@router.get("/{paciente_id}/historial", response_model=list[CitaHistorial], tags=["RF16 · Historial"],
+            responses={**_ERRORES, 404: {"description": "No existe en esta clínica"}})
+def historial(paciente_id: UUID, sesion: Sesion = Depends(quien_lee), con=CONEXION):
+    """RF16: todas las citas del paciente en su clínica, con su estado, de la más reciente a la más antigua.
+
+    Lo ven administrador, recepción (solo lectura) y profesional. No incluye la nota clínica ni datos de contacto,
+    así que no se audita (RF18 solo pide notas y contacto).
+    """
+    if con.execute("SELECT 1 FROM paciente WHERE id = %s AND clinica_id = %s", (paciente_id, sesion.clinica_id)).fetchone() is None:
+        raise HTTPException(404, "Paciente no encontrado")
+    # Todos los JOIN llevan la clínica: nunca cruzan de tenant (I5).
+    return con.execute(
+        """SELECT c.id, c.inicio, c.fin, c.estado, c.profesional_id, u.nombre AS profesional,
+                  c.servicio_id, s.nombre AS servicio, c.motivo_cancelacion
+           FROM cita c
+           JOIN profesional p ON p.clinica_id = c.clinica_id AND p.id = c.profesional_id
+           JOIN usuario u     ON u.clinica_id = p.clinica_id AND u.id = p.usuario_id
+           JOIN servicio s    ON s.clinica_id = c.clinica_id AND s.id = c.servicio_id
+           WHERE c.clinica_id = %s AND c.paciente_id = %s
+           ORDER BY c.inicio DESC, c.id""",
+        (sesion.clinica_id, paciente_id),
+    ).fetchall()
 
 
 @router.post(

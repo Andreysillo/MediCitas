@@ -7,7 +7,7 @@ resume y agrega lo que no se ve allí: los roles, las reglas y el porqué de cad
 | Servicio | Prefijo | Requisitos |
 |---|---|---|
 | Agenda | `/api/agenda` | RF5 a RF13 |
-| Plataforma | `/api/plataforma` | RF1 y RF14 (RF2 a RF4, RF15 y RF16 aún sin documentar aquí) |
+| Plataforma | `/api/plataforma` | RF1 y RF14 a RF16 (RF2 a RF4 aún sin documentar aquí) |
 | Auditoría | `/api/auditoria` | RF19 y RF21, aún sin rutas |
 
 ## Convenciones
@@ -396,6 +396,44 @@ Enviar `id` o `clinica_id` es un 422.
 | 404 | El paciente no existe en tu clínica (también si es de otra) |
 | 409 | Esa identificación ya la tiene otro paciente de la clínica |
 | 422 | Datos inválidos o campos que sobran |
+
+### Historial del paciente
+
+`GET /api/plataforma/pacientes/{id}/historial` · RF16 · `ADM_CLINICA`, `RECEPCION`, `PROFESIONAL`
+
+Todas las citas del paciente en su clínica, de la más reciente a la más antigua, con su estado. No incluye la nota clínica
+ni datos de contacto, por eso no se audita.
+
+```json
+[{ "id": "…", "inicio": "2026-11-16T14:00:00Z", "fin": "2026-11-16T14:30:00Z", "estado": "ATENDIDA",
+   "profesional_id": "…", "profesional": "Dra. Mora", "servicio_id": "…", "servicio": "Consulta general",
+   "motivo_cancelacion": null }]
+```
+
+| Error | Cuándo |
+|---|---|
+| 404 | El paciente no existe en tu clínica |
+
+### Nota clínica
+
+RF15 · solo `PROFESIONAL`, y solo de **sus** citas. Administrador, recepción y plataforma reciben 403.
+
+**`PUT /api/plataforma/citas/{cita_id}/nota`** crea la nota o reemplaza su contenido (una por cita). Solo si la cita está `ATENDIDA`.
+**`GET /api/plataforma/citas/{cita_id}/nota`** la lee.
+
+Ambas quedan en la bitácora (RF18, recurso `NOTA_CLINICA`).
+
+```json
+{ "contenido": "Paciente estable, control en 3 meses." }
+```
+
+**Respuesta 200:** `{ "id", "cita_id", "contenido", "creada_en", "actualizada_en" }`
+
+| Error | Cuándo |
+|---|---|
+| 404 | La cita no existe, es de otro profesional o de otra clínica; o (en `GET`) aún no tiene nota |
+| 409 | La cita no está atendida |
+| 422 | Contenido vacío o de más de 5000 caracteres |
 
 ---
 
