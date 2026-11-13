@@ -6,7 +6,9 @@ Solo lee: la bitácora la escriben los otros servicios en sus propias transaccio
 
 from medicitas_comun import crear_app
 
+from . import bitacora, reportes
+
 app = crear_app("auditoria")
 
-# Cada grupo de requisitos va en su propio router dentro de app/, y se registra aquí:
-# app.include_router(bitacora.router)
+app.include_router(bitacora.router)   # RF19  GET /bitacora
+app.include_router(reportes.router)   # RF21  GET /reportes/citas-por-estado

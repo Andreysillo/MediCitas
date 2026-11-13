@@ -182,6 +182,18 @@ services:
     <<: *api
     build: { context: ./servicios, args: { SERVICIO: auditoria } }
 
+  # Pruebas del servicio de auditoría:  docker compose --profile pruebas run --rm pruebas-auditoria
+  pruebas-auditoria:
+    build: { context: ./servicios, target: pruebas, args: { SERVICIO: auditoria } }
+    profiles: [pruebas]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_MODO: desarrollo
+    depends_on:
+      migraciones:
+        condition: service_completed_successfully
+
   # Frontend compilado + gateway hacia las APIs. No espera a las APIs: si una cae, el resto sigue sirviendo.
   web:
     build: ./frontend

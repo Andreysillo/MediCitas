@@ -6,9 +6,9 @@ resume y agrega lo que no se ve allí: los roles, las reglas y el porqué de cad
 
 | Servicio | Prefijo | Requisitos |
 |---|---|---|
-| Agenda | `/api/agenda` | RF5 a RF13 |
+| Agenda | `/api/agenda` | RF5 a RF13 y RF20 |
 | Plataforma | `/api/plataforma` | RF1 y RF14 a RF16 (RF2 a RF4 aún sin documentar aquí) |
-| Auditoría | `/api/auditoria` | RF19 y RF21, aún sin rutas |
+| Auditoría | `/api/auditoria` | RF19 y RF21 |
 
 ## Convenciones
 
@@ -434,6 +434,66 @@ Ambas quedan en la bitácora (RF18, recurso `NOTA_CLINICA`).
 | 404 | La cita no existe, es de otro profesional o de otra clínica; o (en `GET`) aún no tiene nota |
 | 409 | La cita no está atendida |
 | 422 | Contenido vacío o de más de 5000 caracteres |
+
+## Auditoría y reportes
+
+### Consultar la bitácora
+
+`GET /api/auditoria/bitacora` · RF19 · `ADM_CLINICA`
+
+Registros más recientes primero. Devuelve los primeros 100 y el `total` que cumple los filtros. Todos son opcionales.
+
+| Parámetro | Tipo | Regla |
+|---|---|---|
+| `usuario_id` | id | Quién hizo la lectura o escritura |
+| `paciente` | texto | Se busca en el nombre o la identificación del paciente |
+| `desde`, `hasta` | fecha | Días locales de la clínica, ambos incluidos |
+
+```json
+{ "total": 1, "registros": [{ "id": 42, "ocurrido_en": "2026-11-10T15:02:00Z", "usuario_id": "…", "usuario": "Dra. Mora",
+  "rol": "PROFESIONAL", "accion": "LECTURA", "recurso": "NOTA_CLINICA", "paciente_id": "…",
+  "paciente": "Ana Solís", "identificacion": "1-0987-0456" }] }
+```
+
+| Error | Cuándo |
+|---|---|
+| 422 | Fecha inválida, o `desde` posterior a `hasta` |
+
+La bitácora no tiene rutas para modificarla ni borrarla (I6).
+
+### Citas por estado
+
+`GET /api/auditoria/reportes/citas-por-estado?desde=&hasta=` · RF21 · `ADM_CLINICA`
+
+Cuenta las citas cuyo inicio cae entre `desde` y `hasta` (días locales, incluidos). Todos los estados salen, también con cero.
+
+```json
+{ "desde": "2026-11-01", "hasta": "2026-11-30", "total": 12,
+  "por_estado": { "RESERVADA": 5, "ATENDIDA": 4, "AUSENTE": 1, "CANCELADA": 2, "REPROGRAMADA": 0 } }
+```
+
+| Error | Cuándo |
+|---|---|
+| 422 | Fechas inválidas, `desde` posterior a `hasta`, o rango de más de 366 días |
+
+## Agenda del día
+
+`GET /api/agenda/agenda?fecha=AAAA-MM-DD&profesional_id=` · RF20 · todos los roles con clínica
+
+Las citas cuyo inicio cae en `fecha` (día local), ordenadas por hora. Sin `profesional_id`, las de toda la clínica. Un
+`PROFESIONAL` solo ve las suyas: si pide otro profesional recibe 404. Las `REPROGRAMADA` no salen (la cita nueva que las
+reemplaza ya aparece); las canceladas sí, con su estado.
+
+```json
+[{ "id": "…", "inicio": "2026-11-16T14:00:00Z", "fin": "2026-11-16T14:30:00Z", "estado": "RESERVADA",
+   "paciente_id": "…", "paciente": "Ana Solís", "profesional_id": "…", "profesional": "Dra. Mora",
+   "servicio_id": "…", "servicio": "Consulta general" }]
+```
+
+| Error | Cuándo |
+|---|---|
+| 404 | El profesional no existe en tu clínica |
+| 422 | Fecha inválida |
 
 ---
 
