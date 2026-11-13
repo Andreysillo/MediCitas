@@ -132,6 +132,31 @@ def test_un_bloqueo_y_una_reserva_simultaneos_nunca_dejan_una_cita_dentro_del_bl
     print("\nDesenlaces de la carrera bloqueo-reserva:", vistas)
 
 
+def test_quitar_un_horario_y_una_reserva_simultaneos_nunca_dejan_una_cita_fuera_de_horario_sin_avisar_I3(servidor, mundo_real):
+    """Lo mismo que con los bloqueos, del otro lado: se quita el bloque de atención mientras alguien reserva dentro de él.
+    Correcto: la reserva se rechaza (422) o se concede y quien quitó el bloque la recibe como conflicto. Incorrecto: una
+    cita fuera de todo horario que nadie menciona. Las dos operaciones toman el mismo bloqueo de fila sobre el profesional."""
+    w = mundo_real
+    vistas = {"reserva_rechazada": 0, "cita_listada_como_conflicto": 0}
+    for ronda in range(RONDAS * 2):
+        base = proximo(3, 9) + timedelta(days=7 * ronda)
+        with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as c:      # un bloque nuevo por ronda (miércoles de 08 a 12)
+            horario = c.execute("INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) "
+                                "VALUES (%s, %s, 3, '08:00', '12:00') RETURNING id", (w.clinica_a, w.prof)).fetchone()[0]
+        r_quitar, r_reserva = en_paralelo(servidor, [
+            lambda c: c.delete(f"/horarios/{horario}", headers=como(w.admin)),
+            lambda c: c.post("/citas", headers=como(w.recepcion), json=solicitud(w, w.paciente, base + timedelta(minutes=30))),
+        ])
+        assert r_quitar.status_code == 200, r_quitar.text
+        if r_reserva.status_code == 201:
+            assert r_reserva.json()["id"] in [c["id"] for c in r_quitar.json()["conflictos"]], f"ronda {ronda}: cita fuera de horario que el borrado no lista"
+            vistas["cita_listada_como_conflicto"] += 1
+        else:
+            assert r_reserva.status_code == 422 and "fuera de la atención" in r_reserva.json()["detalle"], f"ronda {ronda}: {r_reserva.text}"
+            vistas["reserva_rechazada"] += 1
+    print("\nDesenlaces de la carrera quitar horario-reserva:", vistas)
+
+
 def test_dos_operaciones_sobre_la_misma_cita_gana_una_RF13(servidor, mundo_real):
     """Cancelar y reprogramar la misma cita a la vez, o reprogramarla dos veces: solo una operación gana, y la cita
     queda en un único estado final, con una sola sucesora como máximo."""
