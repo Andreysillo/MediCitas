@@ -46,8 +46,8 @@ def test_solo_el_dia_local_de_la_clinica(cliente, mundo):
 
 
 def test_reprogramadas_no_salen_pero_canceladas_si(cliente, mundo):
-    mundo.cita(hora(8), "REPROGRAMADA")
-    cancelada = mundo.cita(hora(9), "CANCELADA")
+    mundo.cita(hora(8), estado="REPROGRAMADA")
+    cancelada = mundo.cita(hora(9), estado="CANCELADA")
     r = agenda(cliente, mundo.admin).json()
     assert [(c["id"], c["estado"]) for c in r] == [(str(cancelada), "CANCELADA")]
 
