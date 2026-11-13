@@ -93,6 +93,47 @@ Qué incoherencia queda, y cuánto dura:
 - **Si falla el `INCR` y Redis sigue con sus datos** (por ejemplo, un corte de red): la copia vieja dura como mucho 5 minutos. Si Redis se reinició, no pasa nada: quedó vacío.
 - **Si cambia la zona horaria de una clínica:** lo edita `plataforma`, no va en la clave y no invalida. También dura como mucho 5 minutos.
 
+### Qué se midió (T34)
+
+Una solicitud de RF7 (un profesional, un día) contra la API real en su propio proceso, con la base de
+[db/pruebas/historial_sintetico.sql](../../db/pruebas/historial_sintetico.sql) (83 mil citas y 50 mil bloqueos). Entre un escenario
+y otro solo cambia si hay Redis; la base, los datos y el código son los mismos. Medianas, con el rango entre corridas:
+
+| Una solicitud de RF7 | Sin caché | Con la copia en Redis | Con la caché, pero sin copia |
+|---|---|---|---|
+| **Con los índices de T15** (el estado actual, 5 corridas) | 9,6 ms (8,6 a 12,5) | 7,4 ms (6,4 a 10,0) | 11,6 ms (9,9 a 14,2) |
+| **Sin los índices de T15** (3 corridas) | 17,5 ms (16,9 a 22,7) | 8,2 ms (7,0 a 8,3) | 20 ms (19,2 a 20,6) |
+| Referencia: `/salud`, que no toca la base | 1,0 a 2,3 ms | | |
+
+En paralelo (16 clientes a la vez, 960 solicitudes): con los índices, la API atiende entre 130 y 167 solicitudes por segundo
+con o sin caché, sin diferencia clara (la razón entre las dos fue de 0,73 a 1,12). Sin los índices, 98 a 122 sin caché y 125 a
+139 con ella, entre 1,03 y 1,42 veces más.
+
+Qué dicen estas cifras:
+
+- **Con los índices, una copia ahorra unos 2 ms de 9,6 (entre 1,2 y 1,4 veces menos latencia).** La consulta de disponibilidad ya
+  cuesta cerca de 1,5 ms en la base, y eso es lo único que la caché evita.
+- **Sin los índices, ahorra más del doble.** Los índices (T15) y la caché (T14) atacan el mismo costo: el cálculo de la
+  disponibilidad. Con los dos la ganancia de la caché es menor, pero la caché es la protección cuando la consulta crece (más
+  citas o más bloqueos), y los índices mantienen barato el caso en que no hay copia.
+- **Intentar la caché y no encontrar la copia cuesta entre 1 y 3 ms más** (leer la versión, leer la copia y guardarla). Ocurre en
+  la primera consulta tras cada cambio de la agenda.
+- **Un acierto sigue tardando unos 6,5 ms, y no 1 o 2 como `/salud`.** La diferencia es lo que toda solicitud paga: la sesión,
+  las validaciones en la base (se validan antes de leer Redis para que nadie vea la agenda de otra clínica), las dos lecturas de
+  Redis y la respuesta. No se desglosó más.
+- **En paralelo no se ve el efecto de la caché con los índices:** un solo proceso de la API atiende unas 100 a 170 solicitudes por
+  segundo y el límite es el trabajo de Python por solicitud, no la base. Con varios procesos esto cambiaría.
+
+Límites de la medición: una sola computadora (Docker Desktop en Windows), con un ruido de hasta ±30 % entre corridas (por eso los
+rangos), un profesional y un servicio, y un único proceso por API. No es una prueba de carga: eso corresponde a la Etapa 2.
+
+```bash
+docker compose exec -T db sh -c 'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < db/pruebas/historial_sintetico.sql   # SOLO en una base de prueba
+docker compose --profile pruebas run --rm pruebas-agenda python -m tests.medir_cache
+```
+
+Para repetir el caso "sin índices", quita los dos índices de la migración `008` en esa base de prueba y vuelve a correr el script.
+
 Toda ruta nueva que cambie citas vigentes, horarios o bloqueos debe llamar a `cache.invalidar_tras_commit`. Las pruebas están
 en `tests/test_cache.py`, con Redis real y commits de verdad.
 
