@@ -38,8 +38,52 @@ keycloak/        modulo keycloak para identidad y acceso (autenticación)
 
 ## Caché de disponibilidad (Redis)
 
-RF7 se sirve desde Redis, que corre en el Compose sin disco y sin puerto publicado. Es solo una copia: si se apaga, la
-agenda sigue funcionando desde PostgreSQL, algo más lenta. Clave, invalidación y qué incoherencia queda:
+RF7 (qué horas libres tiene un profesional) es la consulta que más veces se ejecuta, y calcularla en PostgreSQL cuesta.
+Por eso se sirve desde Redis, que corre en el Compose sin disco y sin puerto publicado. **Redis solo guarda copias**: la verdad
+siempre está en PostgreSQL, y si Redis se apaga, la agenda sigue funcionando desde la base, algo más lenta.
+
+### Cómo pensarla: una pizarra con hojas
+
+Imagina la recepción de la clínica:
+
+- **La agenda oficial es PostgreSQL.** Siempre es correcta, pero contestar "¿qué horas libres tiene la Dra. Méndez el lunes?"
+  obliga a revisar horarios, bloqueos y citas.
+- **Redis es una pizarra con hojas ya resueltas**, por ejemplo: «Dra. Méndez · lunes 16 · Control de 15 min → libres 8:00, 8:15,
+  8:30…». Leer una hoja es casi instantáneo.
+- **Cada hoja es la copia de UNA consulta**. Su título es la *clave*: clínica, profesional, servicio, duración, fecha y un número
+  de edición. Si cualquiera de esos datos cambia, el título es otro y se busca (o se crea) otra hoja.
+- **Cada profesional tiene un letrero con su número de edición.** Reservar, cancelar, reprogramar o cambiar sus horarios o
+  bloqueos sube el letrero (de 7 a 8). Las hojas de la edición 7 siguen en la pizarra, pero nadie las vuelve a buscar: todos
+  piden la 8. Así, **un solo número invalida todas las fechas y servicios de ese profesional**, sin buscar hoja por hoja.
+- **Un conserje tira cada hoja a los 5 minutos** (el *TTL*). No repone nada ni vuelve a una versión anterior: solo la tira, y la
+  siguiente consulta la recalcula. Es una red de seguridad por si un letrero no llegó a subir; no es lo que mantiene correcta
+  la caché.
+
+Un ejemplo, con Ana y Beto que consultan, y Luis que reserva:
+
+| Hora | Qué ocurre | Letrero | Hojas en la pizarra |
+|---|---|---|---|
+| 9:00 | Ana consulta el lunes 16. No hay hoja: se calcula en PostgreSQL y se cuelga la hoja | 7 | edición 7 |
+| 9:01 | Beto consulta lo mismo: lee la hoja, sin calcular | 7 | edición 7 |
+| 9:02 | Luis reserva las 8:00. Primero la cita queda **confirmada** en PostgreSQL; luego sube el letrero; recién entonces se le responde | 8 | edición 7 (invisible) |
+| 9:03 | Ana vuelve a consultar: busca la edición 8, no hay hoja, calcula, ya no ve las 8:00 libres y cuelga la hoja nueva | 8 | edición 7, edición 8 |
+| 9:05 | El conserje tira la hoja de la edición 7 | 8 | edición 8 |
+
+Por eso la caché **no miente** (invariante I8): quien reserva nunca ve su espacio libre al volver a consultar, y no hay que
+esperar a que venza nada. El orden importa: si el letrero subiera *antes* de confirmar la cita, alguien podría colgar una hoja
+nueva sin ver todavía la reserva, y esa hoja falsa se quedaría.
+
+Tres cosas que suelen confundirse:
+
+1. **Cambiar la duración de un servicio no sube el letrero.** La duración está en el título de la hoja, así que las consultas
+   piden hojas nuevas por su cuenta. Por eso `plataforma` puede editar servicios sin saber que existe Redis.
+2. **Si la pizarra se llena,** Redis tira hojas primero y nunca letreros: si un letrero desapareciera, volvería a 0 y podrían
+   reaparecer hojas viejas.
+3. **Redis no guarda nada en disco, a propósito.** Al reiniciarse arranca con la pizarra vacía, y eso siempre es correcto. Un
+   respaldo traería hojas que quizá ya no son verdad.
+
+Con los índices de la base, una hoja ahorra unos 2 ms por consulta; sin ellos, más del doble
+([medición](servicios/agenda/README.md#qué-se-midió-t34)). Todas las decisiones, la incoherencia que queda y por qué:
 [servicios/agenda/README.md](servicios/agenda/README.md#caché-de-disponibilidad-rf7-i8).
 
 ## Identidad (Keycloak)
