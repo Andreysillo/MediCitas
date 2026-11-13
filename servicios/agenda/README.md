@@ -30,7 +30,10 @@ app/
   conflictos.py      citas que un bloqueo o un cambio de horario deja sin cubrir
   permisos.py        quién puede tocar los horarios de quién + el bloqueo de fila sobre el profesional
   esquemas.py        forma de lo que entra y sale (validación y /docs)
-tests/               contra la base real, cada prueba se deshace con ROLLBACK
+tests/
+  unitarias/         la lógica sola, sin base ni Redis (dobles en dobles.py)
+  test_*.py          integración: la API contra la base real
+  medir_*.py         mediciones de rendimiento (no son pruebas)
 ```
 
 ## Cómo se calcula la disponibilidad

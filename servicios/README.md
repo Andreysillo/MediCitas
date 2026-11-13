@@ -76,14 +76,27 @@ permisos con tokens reales son la tarea T29.
 
 ## Pruebas
 
-Corren contra la base real y cada prueba se deshace con ROLLBACK, así que no dependen de la semilla ni dejan datos:
+Hay dos clases, y se distinguen por lo que necesitan para correr:
+
+| | Unitarias (`tests/unitarias/`) | De integración (`tests/*.py`) |
+|---|---|---|
+| Qué prueban | La lógica propia del código: qué valida, en qué orden bloquea, qué invalida, cómo arma una consulta | La API contra la pila real: lo que decide el motor (solapes, claves foráneas, triggers), la concurrencia y la caché con Redis |
+| Qué necesitan | **Nada**: ni base de datos ni Redis. Usan dobles (`tests/unitarias/dobles.py`) | Postgres con el esquema aplicado; las de caché, también Redis |
+| Cuánto tardan | Menos de un segundo | Unos 15 segundos |
 
 ```bash
-docker compose --profile pruebas run --rm --build pruebas-agenda
+docker compose --profile pruebas run --rm --build pruebas-agenda                                    # las dos clases
+docker compose --profile pruebas run --rm --no-deps pruebas-agenda python -m pytest tests/unitarias   # solo las unitarias, sin base
 ```
 
-`tests/conftest.py` arma un "mundo" mínimo por prueba (dos clínicas, usuarios de cada rol, profesionales, un paciente)
-y da `mundo.cita(...)` para crear citas.
+Cuál escribir: si lo que se decide lo decide el **código** (un orden, un rechazo, una invalidación), unitaria; si lo decide
+el **motor** (que dos reservas simultáneas del mismo espacio terminen en un solo 201), integración, porque un doble no puede
+reproducir al motor. El cálculo de los espacios libres es una consulta SQL, así que sus resultados también se prueban con
+integración; las unitarias cubren lo que la rodea.
+
+En las de integración, `tests/conftest.py` arma un "mundo" mínimo por prueba (dos clínicas, usuarios de cada rol,
+profesionales, un paciente) y da `mundo.cita(...)` para crear citas. Casi todas se deshacen con ROLLBACK, así que no
+dependen de la semilla ni dejan datos; las que necesitan datos confirmados (concurrencia y caché) borran lo que crean.
 
 ## Reglas entre servicios y tareas
 
