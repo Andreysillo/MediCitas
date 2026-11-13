@@ -94,6 +94,10 @@ el **motor** (que dos reservas simultáneas del mismo espacio terminen en un sol
 reproducir al motor. El cálculo de los espacios libres es una consulta SQL, así que sus resultados también se prueban con
 integración; las unitarias cubren lo que la rodea.
 
+Una prueba marcada `xfail(strict=True)` es una exigencia que el sistema **aún no cumple** (hoy, I6: la bitácora append-only
+en el motor). Se reporta como `xfailed` en vez de ocultarse, y cuando se cumpla falla a propósito para avisar que hay que
+quitarle la marca.
+
 En las de integración, `tests/conftest.py` arma un "mundo" mínimo por prueba (dos clínicas, usuarios de cada rol,
 profesionales, un paciente) y da `mundo.cita(...)` para crear citas. Casi todas se deshacen con ROLLBACK, así que no
 dependen de la semilla ni dejan datos; las que necesitan datos confirmados (concurrencia y caché) borran lo que crean.

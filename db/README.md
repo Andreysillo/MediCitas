@@ -120,4 +120,9 @@ dentro de una transacción. Las consultas de B que aún no existen (historial de
 ## Pendiente
 
 - Roles de base de datos con menor privilegio y la protección de `registro_auditoria` contra `UPDATE`,
-  `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23).
+  `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23). **Hoy no existe**: los tres servicios se conectan con
+  el usuario de `POSTGRES_USER`, que es superusuario y dueño de la tabla, y la tabla no tiene triggers, así que pueden
+  modificar y borrar la bitácora. Un privilegio revocado no frena al dueño: hace falta el trigger, y que los servicios se
+  conecten con roles que no sean dueños. Las pruebas que lo exigen ya están en
+  `servicios/agenda/tests/test_invariantes_i3_i6.py`, marcadas `xfail(strict=True)`: hoy salen `xfailed`, y cuando la
+  protección exista fallarán a propósito para recordar que hay que quitarles la marca.
