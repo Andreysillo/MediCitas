@@ -7,7 +7,6 @@ import psycopg
 import pytest
 from conftest import como, poner_horario, proximo
 
-from app.citas import TRANSICIONES, exigir_transicion
 
 ESTADOS = ["RESERVADA", "ATENDIDA", "AUSENTE", "CANCELADA", "REPROGRAMADA"]
 FINALES = ESTADOS[1:]
@@ -46,23 +45,7 @@ def libres(cliente, mundo):
     return [datetime.fromisoformat(e) for e in r.json()["espacios"]]
 
 
-# ---------- Máquina de estados (RF13): lógica pura ----------
-
-def test_la_tabla_de_transiciones_es_la_del_enunciado():
-    assert TRANSICIONES["RESERVADA"] == set(FINALES)
-    assert all(TRANSICIONES[e] == set() for e in FINALES)
-
-
-@pytest.mark.parametrize("de", ESTADOS)
-@pytest.mark.parametrize("a", ESTADOS)
-def test_cada_par_de_estados(de, a):
-    if de == "RESERVADA" and a != "RESERVADA":
-        exigir_transicion(de, a)
-    else:
-        with pytest.raises(Exception) as e:
-            exigir_transicion(de, a)
-        assert e.value.status_code == 409
-
+# La tabla de transiciones (RF13) se prueba, sin base de datos, en unitarias/test_estados.py.
 
 # ---------- Reprogramar (RF10) ----------
 
