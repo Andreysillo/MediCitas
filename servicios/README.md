@@ -19,9 +19,10 @@ bitácora fuera una llamada HTTP a otro servicio, una caída de la red dejaría 
   `/api/plataforma/` y `/api/auditoria/` hacia cada servicio ([frontend/nginx.conf](../frontend/nginx.conf)).
 - Los servicios **no se llaman entre sí**. Comparten la base de datos, pero cada tabla tiene un solo
   servicio que escribe en ella (la tabla de arriba). Leer las tablas de otro está permitido, porque las
-  restricciones del motor (I1, I2, I5) protegen la consistencia sin importar quién escriba. Cuando existan
-  los roles de base de datos (T19), cada servicio tendrá su usuario, con permiso de escritura solo sobre
-  sus tablas.
+  restricciones del motor (I1, I2, I5) protegen la consistencia sin importar quién escriba. Cada servicio se
+  conecta con su propio rol de base de datos, con permiso de escritura solo sobre sus tablas (migración 011;
+  ver [db/README.md](../db/README.md#roles-de-base-de-datos)). Una ruta nueva que toque una tabla o columna que
+  el rol no tiene falla con `permission denied`: se agrega el permiso en una migración nueva.
 
 ## Qué trae cada servicio sin escribir nada
 

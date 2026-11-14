@@ -63,6 +63,14 @@ def como(usuario_id) -> dict:
     return {"X-Usuario-Id": str(usuario_id)}
 
 
+def _como_rol_del_servicio(con):
+    """Con ROL_PRUEBAS, la solicitud corre con el rol de menor privilegio del servicio (migración 011), como en producción.
+    El resto de la prueba (armar datos, comprobar resultados) sigue como superusuario."""
+    rol = os.environ.get("ROL_PRUEBAS")
+    if rol:
+        con.execute(psycopg.sql.SQL("SET LOCAL ROLE {}").format(psycopg.sql.Identifier(rol)))
+
+
 @pytest.fixture
 def con():
     c = psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row)
@@ -85,7 +93,9 @@ def cliente(con, monkeypatch):
         # Un punto de guardado por solicitud: si la ruta falla (409, 422...), solo se deshace esa solicitud
         # y la prueba puede seguir usando la misma conexión.
         with con.transaction():
+            _como_rol_del_servicio(con)
             yield con
+        con.execute("RESET ROLE")   # solo se llega aquí si la solicitud salió bien; si falló, el rollback ya lo deshizo
 
     app.dependency_overrides[conexion] = conexion_de_prueba
     with TestClient(app) as c:

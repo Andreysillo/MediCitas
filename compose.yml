@@ -11,9 +11,8 @@ name: medicitas
 x-api: &api
   restart: unless-stopped
   environment: &api-env
-    # Hoy los tres usan el mismo usuario de la base. Cuando existan los roles de menor privilegio (T19),
-    # cada servicio recibe aquí el suyo y el código no cambia.
-    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # DATABASE_URL no va aquí: cada servicio se conecta con su propio rol de menor privilegio (migración 011), que
+    # se define en el servicio. Ninguno usa POSTGRES_USER, que es superusuario y dueño de las tablas.
     # "keycloak": valida el JWT. "desarrollo": confía en la cabecera X-Usuario-Id, SIN validar; nunca debe ser el
     # valor por defecto. Con otro valor se rechaza todo con 401. Ver comun/medicitas_comun/sesion.py.
     AUTH_MODO: ${AUTH_MODO:-keycloak}
@@ -63,6 +62,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_DB: ${POSTGRES_DB}
       CARGAR_SEMILLA: ${CARGAR_SEMILLA:-si}
+      # Contraseñas de los roles de los servicios: aplicar.sh las asigna en cada arranque.
+      AGENDA_DB_PASSWORD: ${AGENDA_DB_PASSWORD:?falta AGENDA_DB_PASSWORD en .env}
+      PLATAFORMA_DB_PASSWORD: ${PLATAFORMA_DB_PASSWORD:?falta PLATAFORMA_DB_PASSWORD en .env}
+      AUDITORIA_DB_PASSWORD: ${AUDITORIA_DB_PASSWORD:?falta AUDITORIA_DB_PASSWORD en .env}
     volumes:
       - ./db:/db:ro
     depends_on:
@@ -136,16 +139,20 @@ services:
     build: { context: ./servicios, args: { SERVICIO: agenda } }
     environment:
       <<: *api-env
+      DATABASE_URL: postgresql://app_agenda:${AGENDA_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
 
   # Pruebas del servicio de agenda contra la base real (cada prueba se deshace con ROLLBACK):
   #   docker compose --profile pruebas run --rm pruebas-agenda
+  # Se conectan como superusuario para armar los datos, pero cada solicitud corre con el rol del servicio (ROL_PRUEBAS):
+  # así las pruebas también ejercitan los permisos de la migración 011.
   pruebas-agenda:
     build: { context: ./servicios, target: pruebas, args: { SERVICIO: agenda } }
     profiles: [pruebas]
     restart: "no"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ROL_PRUEBAS: app_agenda
       AUTH_MODO: desarrollo
       REDIS_URL: redis://redis:6379/0
     depends_on:
@@ -160,6 +167,7 @@ services:
     build: { context: ./servicios, args: { SERVICIO: plataforma } }
     environment:
       <<: *api-env
+      DATABASE_URL: postgresql://app_plataforma:${PLATAFORMA_DB_PASSWORD}@db:5432/${POSTGRES_DB}
       # RF1 y RF2: crea la cuenta del primer administrador de cada clínica (RF1) y las de los usuarios que se agregan
       # después (RF2) con la API de administración de Keycloak, por la red interna. RF3 y RF4 no la usan.
       KEYCLOAK_URL: http://keycloak:8080
@@ -173,6 +181,7 @@ services:
     restart: "no"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ROL_PRUEBAS: app_plataforma
       AUTH_MODO: desarrollo
     depends_on:
       migraciones:
@@ -182,6 +191,9 @@ services:
   auditoria:
     <<: *api
     build: { context: ./servicios, args: { SERVICIO: auditoria } }
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgresql://app_auditoria:${AUDITORIA_DB_PASSWORD}@db:5432/${POSTGRES_DB}
 
   # Pruebas del servicio de auditoría:  docker compose --profile pruebas run --rm pruebas-auditoria
   pruebas-auditoria:
@@ -190,6 +202,7 @@ services:
     restart: "no"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ROL_PRUEBAS: app_auditoria
       AUTH_MODO: desarrollo
     depends_on:
       migraciones:

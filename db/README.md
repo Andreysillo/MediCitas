@@ -23,7 +23,8 @@ db/
 | `007_cita_protegida.sql` | Trigger `cita_protegida`: los estados finales no admiten salida (RF13) y los datos de una cita no se editan (I4) |
 | `008_indices.sql` | Índices de bloqueos por profesional y rango, y de citas reservadas pendientes (T15; ver «Índices») |
 | `009_indice_agenda_del_dia.sql` | Índice `cita (clinica_id, inicio)` para la agenda del día (RF20) y el conteo por estado (RF21) |
-| `010_bitacora_solo_agregar.sql` | Trigger que rechaza `UPDATE`, `DELETE` y `TRUNCATE` sobre `registro_auditoria` (I6, primera barrera; ver «Pendiente») |
+| `010_bitacora_solo_agregar.sql` | Trigger que rechaza `UPDATE`, `DELETE` y `TRUNCATE` sobre `registro_auditoria` (I6, primera barrera) |
+| `011_roles.sql` | Roles `app_agenda`, `app_plataforma` y `app_auditoria` con sus permisos mínimos (T19, segunda barrera de I6); ver «Roles de base de datos» |
 
 Reglas para cambiar el esquema:
 - Un cambio nuevo es **la migración siguiente** (`008_...sql`). Nunca se edita una migración que ya se
@@ -121,10 +122,28 @@ dentro de una transacción. La consulta del historial del paciente y la de la bi
 
 ## Pendiente
 
-- Roles de base de datos con menor privilegio (T19, Persona B). **I6 está a medias**: la migración 010 pone el trigger, que
-  rechaza `UPDATE`, `DELETE` y `TRUNCATE` sobre `registro_auditoria` aunque quien lo intente sea el dueño o un superusuario
-  (probado en `db/pruebas/restricciones.sql` y en `servicios/agenda/tests/test_invariantes_i3_i6.py`). Falta la otra barrera:
-  los tres servicios todavía se conectan con el usuario de `POSTGRES_USER`, que es superusuario y dueño, así que pueden
-  desactivar el trigger (`ALTER TABLE … DISABLE TRIGGER`) o borrar la tabla. Hacen falta roles sin `UPDATE`, `DELETE` ni
-  `TRUNCATE` sobre la bitácora y que no sean dueños. Su prueba ya está escrita, marcada `xfail(strict=True)`: hoy sale
-  `xfailed`, y cuando el rol exista fallará a propósito para recordar que hay que quitarle la marca.
+Nada por ahora. Los roles de menor privilegio (T19) y la protección de la bitácora (I6) ya están; ver abajo.
+
+## Roles de base de datos
+
+Cada servicio se conecta con su propio rol (migración 011). Ninguno es superusuario ni dueño de las tablas; esas
+siguen siendo de `POSTGRES_USER`, que solo usan las migraciones.
+
+| Rol | Puede | No puede |
+|---|---|---|
+| `app_agenda` | Leer el catálogo; insertar y borrar horarios y bloqueos; insertar citas y cambiar su estado (solo las columnas de estado y cancelación) | Ver notas clínicas ni la bitácora; ver teléfono o correo de pacientes; editar datos de una cita |
+| `app_plataforma` | Escribir clínicas, usuarios, catálogo, profesionales, pacientes y notas; **insertar** en la bitácora; leer citas | Modificar o borrar la bitácora; modificar citas |
+| `app_auditoria` | Leer la bitácora y las columnas mínimas de clínica, paciente (nombre e identificación) y cita (fecha y estado) | Escribir en cualquier tabla; ver notas, teléfono o correo |
+
+- La contraseña de cada rol sale del `.env` (`AGENDA_DB_PASSWORD`, `PLATAFORMA_DB_PASSWORD`, `AUDITORIA_DB_PASSWORD`).
+  La migración crea los roles sin poder iniciar sesión, y `aplicar.sh` los habilita con la contraseña en cada arranque:
+  una contraseña no debe vivir en un archivo versionado.
+- **Dos barreras para I6.** Los roles no tienen `UPDATE`, `DELETE` ni `TRUNCATE` sobre `registro_auditoria`, y además los
+  triggers de la migración 010 los rechazan aunque alguien se los diera por error. Un superusuario aún podría
+  desactivar el trigger, por eso los servicios no se conectan como superusuario.
+- **Una tabla o columna nueva no queda accesible sola.** La migración que la crea debe darle sus permisos a cada rol; si
+  no, el servicio falla con `permission denied`. Las pruebas lo detectan: corren cada solicitud con el rol del servicio
+  (`ROL_PRUEBAS` en el compose), y el resto (armar datos, comprobar) como superusuario.
+- **Excepción documentada:** `SELECT ... FOR NO KEY UPDATE` exige `UPDATE` sobre al menos una columna. Para bloquear filas
+  (reserva, bloqueos, usuarios), `app_agenda` y `app_plataforma` tienen `UPDATE (id)` sobre `profesional`, `paciente` y
+  `clinica`, según el caso. Ninguna ruta cambia `id`, y el motor lo impediría mientras haya filas que lo referencien.

@@ -39,3 +39,14 @@ for carpeta in $carpetas; do
               -c "INSERT INTO schema_migrations (archivo) VALUES ('$nombre')"
     done
 done
+
+# Habilita los roles de los servicios (los crea la migración 011) con las contraseñas del entorno. Corre en cada
+# arranque, así cambiar una contraseña en .env basta. La contraseña viaja como variable de psql (:'clave'), que la
+# escapa: no se concatena en el SQL.
+for par in "app_agenda:${AGENDA_DB_PASSWORD:-}" "app_plataforma:${PLATAFORMA_DB_PASSWORD:-}" "app_auditoria:${AUDITORIA_DB_PASSWORD:-}"; do
+    rol="${par%%:*}"
+    clave="${par#*:}"
+    [ -n "$clave" ] || { echo "falta la contraseña de $rol (AGENDA_DB_PASSWORD, PLATAFORMA_DB_PASSWORD, AUDITORIA_DB_PASSWORD)" >&2; exit 1; }
+    echo "ALTER ROLE $rol LOGIN PASSWORD :'clave'" | $PSQL -v "clave=$clave" > /dev/null
+    echo "habilitado:  $rol"
+done
