@@ -48,8 +48,10 @@ def _usuario(con, roles, clinica, rol, nombre):
 
 
 def construir_clinica(con, canario: str) -> SimpleNamespace:
-    """Una clínica con un poco de todo: un usuario por rol, catálogo, profesional con horario y bloqueo, paciente,
-    una cita futura, una pasada con su nota y un registro de bitácora. `canario` va en cada texto."""
+    """Una clínica con un poco de todo: un usuario por rol, catálogo, paciente, un registro de bitácora y DOS
+    profesionales, cada uno con horario, bloqueo, una cita futura, una pasada sin desenlace y una atendida con su nota.
+    Los del segundo terminan en `_colega`: con ellos se prueba el «solo los propios» de la matriz (T29). `canario` va en
+    cada texto."""
     def ins(sql, *p):
         return con.execute(sql + " RETURNING id", p).fetchone()["id"]
 
@@ -59,40 +61,47 @@ def construir_clinica(con, canario: str) -> SimpleNamespace:
     w.clinica = ins("INSERT INTO clinica (nombre, identificador, zona_horaria) VALUES ('Clínica', %s, 'America/Costa_Rica')", unico())
     w.admin = _usuario(con, roles, w.clinica, "ADM_CLINICA", f"Admin {canario}")
     w.recepcion = _usuario(con, roles, w.clinica, "RECEPCION", f"Recepción {canario}")
-    w.usuario_prof = _usuario(con, roles, w.clinica, "PROFESIONAL", f"Dra. {canario}")
     w.usuario_libre = _usuario(con, roles, w.clinica, "PROFESIONAL", f"Dr. libre {canario}")   # aún sin registrar (RF4)
 
     w.especialidad = ins("INSERT INTO especialidad (clinica_id, nombre) VALUES (%s, %s)", w.clinica, f"Esp {canario}")
     w.servicio = ins("INSERT INTO servicio (clinica_id, nombre, duracion_minutos, especialidad_id) VALUES (%s,%s,30,%s)",
                      w.clinica, f"Serv {canario}", w.especialidad)
-    w.prof = ins("INSERT INTO profesional (clinica_id, usuario_id, especialidad_id, numero_colegiado) VALUES (%s,%s,%s,%s)",
-                 w.clinica, w.usuario_prof, w.especialidad, f"C{canario}")
-    con.execute("INSERT INTO profesional_servicio (clinica_id, profesional_id, servicio_id) VALUES (%s,%s,%s)",
-                (w.clinica, w.prof, w.servicio))
-    horarios = [ins("INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) VALUES (%s,%s,%s,'08:00','12:00')",
-                    w.clinica, w.prof, d) for d in range(1, 8)]
-    w.horario = horarios[0]
-
-    # Todo pasa en un mismo día futuro: cita a las 08:00, bloqueo a las 10:00 y un espacio libre a las 09:00.
-    w.fecha = (datetime.now(CR) + timedelta(days=8)).date()
-    a_las = lambda h: datetime(w.fecha.year, w.fecha.month, w.fecha.day, h, tzinfo=CR)
-    w.inicio_libre = a_las(9)
-    w.bloqueo = ins("INSERT INTO bloqueo_agenda (clinica_id, profesional_id, inicio, fin, motivo) VALUES (%s,%s,%s,%s,%s)",
-                    w.clinica, w.prof, a_las(10), a_las(10) + timedelta(minutes=30), f"Motivo {canario}")
-
     w.identificacion = f"{canario}{unico()}"      # para buscar al paciente por texto, no solo por id
     w.paciente = ins("""INSERT INTO paciente (clinica_id, identificacion, nombre, fecha_nacimiento, telefono, correo)
                         VALUES (%s,%s,%s,'1990-01-01',%s,%s)""", w.clinica, w.identificacion, f"Paciente {canario}", canario, f"{canario}@correo.cr")
 
-    def cita(inicio, estado="RESERVADA"):
-        return ins("""INSERT INTO cita (clinica_id, paciente_id, profesional_id, servicio_id, inicio, fin, estado, creada_por)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
-                   w.clinica, w.paciente, w.prof, w.servicio, inicio, inicio + timedelta(minutes=30), estado, w.admin)
-    w.cita = cita(a_las(8))
+    # Todo lo futuro pasa en un mismo día: atienden de 08:00 a 12:00 y queda libre el espacio de las 09:00.
+    w.fecha = (datetime.now(CR) + timedelta(days=8)).date()
     ayer = datetime.now(CR).date() - timedelta(days=1)
-    w.cita_pasada = cita(datetime(ayer.year, ayer.month, ayer.day, 8, tzinfo=CR))                  # aún sin desenlace (RF12)
-    w.cita_atendida = cita(datetime(ayer.year, ayer.month, ayer.day, 9, tzinfo=CR), "ATENDIDA")    # la nota solo va en una atendida (RF15)
-    w.nota = ins("INSERT INTO nota_clinica (clinica_id, cita_id, contenido) VALUES (%s,%s,%s)", w.clinica, w.cita_atendida, f"Nota {canario}")
+    dia = lambda d, h: datetime(d.year, d.month, d.day, h, tzinfo=CR)
+    w.inicio_libre = dia(w.fecha, 9)
+
+    def profesional(sufijo, nombre, h_cita, h_bloqueo, h_pasada):
+        """Registra un profesional con su agenda y deja sus ids en w con el sufijo dado. El paciente es el mismo para los
+        dos, así que las horas de sus citas no se cruzan (I2)."""
+        usuario = _usuario(con, roles, w.clinica, "PROFESIONAL", f"{nombre} {canario}")
+        prof = ins("INSERT INTO profesional (clinica_id, usuario_id, especialidad_id, numero_colegiado) VALUES (%s,%s,%s,%s)",
+                   w.clinica, usuario, w.especialidad, f"C{canario}")
+        con.execute("INSERT INTO profesional_servicio (clinica_id, profesional_id, servicio_id) VALUES (%s,%s,%s)", (w.clinica, prof, w.servicio))
+        horarios = [ins("INSERT INTO horario_atencion (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) VALUES (%s,%s,%s,'08:00','12:00')",
+                        w.clinica, prof, d) for d in range(1, 8)]
+        bloqueo = ins("INSERT INTO bloqueo_agenda (clinica_id, profesional_id, inicio, fin, motivo) VALUES (%s,%s,%s,%s,%s)",
+                      w.clinica, prof, dia(w.fecha, h_bloqueo), dia(w.fecha, h_bloqueo) + timedelta(minutes=30), f"Motivo {canario}")
+
+        def cita(inicio, estado="RESERVADA"):
+            return ins("""INSERT INTO cita (clinica_id, paciente_id, profesional_id, servicio_id, inicio, fin, estado, creada_por)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                       w.clinica, w.paciente, prof, w.servicio, inicio, inicio + timedelta(minutes=30), estado, w.admin)
+        atendida = cita(dia(ayer, h_pasada + 1), "ATENDIDA")          # la nota solo va en una atendida (RF15)
+        valores = dict(usuario_prof=usuario, prof=prof, horario=horarios[0], bloqueo=bloqueo, cita=cita(dia(w.fecha, h_cita)),
+                       cita_pasada=cita(dia(ayer, h_pasada)),          # aún sin desenlace (RF12)
+                       cita_atendida=atendida,
+                       nota=ins("INSERT INTO nota_clinica (clinica_id, cita_id, contenido) VALUES (%s,%s,%s)", w.clinica, atendida, f"Nota {canario}"))
+        for k, v in valores.items():
+            setattr(w, k + sufijo, v)
+
+    profesional("", "Dra.", h_cita=8, h_bloqueo=10, h_pasada=8)
+    profesional("_colega", "Dr. colega", h_cita=11, h_bloqueo=10, h_pasada=10)
     con.execute("INSERT INTO registro_auditoria (clinica_id, usuario_id, paciente_id, accion, recurso) VALUES (%s,%s,%s,'LECTURA','NOTA_CLINICA')",
                 (w.clinica, w.admin, w.paciente))
     return w
