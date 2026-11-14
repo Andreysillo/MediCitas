@@ -8,10 +8,13 @@ la reserva. Además de lo de este archivo, I3 lo prueban:
   - test_concurrencia.py   un bloqueo, o quitar un bloque, a la vez que una reserva (dos pruebas)
   - unitarias/             el orden de los bloqueos y los mensajes de cada regla
 
-I6. La bitácora no admite modificación ni borrado por parte de la aplicación, impuesto por el MOTOR (privilegios del rol de la
-aplicación y un trigger de respaldo), no por convención. ESTO AÚN NO EXISTE: lo agregan las tareas T19 y T23 (Persona B). Las
-pruebas de I6 están escritas ya, como especificación ejecutable, y marcadas `xfail(strict=True)`: hoy fallan (y se reportan como
-xfailed); el día que la protección exista pasarán, `strict` lo convertirá en un fallo y habrá que quitar la marca.
+I6. La bitácora no admite modificación ni borrado por parte de la aplicación, impuesto por el MOTOR, no por convención. Son dos
+barreras:
+  - el TRIGGER (migración 010): rechaza UPDATE, DELETE y TRUNCATE sea quien sea. Probado aquí, y vale hoy.
+  - los PRIVILEGIOS del rol de la aplicación (T19, Persona B): sin UPDATE, DELETE ni TRUNCATE, y que la aplicación no sea la dueña
+    de la tabla ni superusuario. ESTO AÚN NO EXISTE: su prueba está escrita como especificación ejecutable y marcada
+    `xfail(strict=True)`: hoy falla (y se reporta como xfailed); el día que el rol exista pasará, `strict` lo convertirá en un
+    fallo y habrá que quitar la marca.
 """
 
 from datetime import date, datetime, timedelta, timezone
@@ -82,12 +85,12 @@ def test_una_cita_que_cruza_la_medianoche_no_cabe_aunque_las_horas_lo_parezcan_I
 
 # ---------- I6: la bitácora es append-only, en el motor ----------
 
-# Cuando exista, el motor puede rechazar con un privilegio que falta, con un trigger que lanza un error o con un CHECK.
-RECHAZOS = (psycopg.errors.InsufficientPrivilege, psycopg.errors.RaiseException, psycopg.errors.CheckViolation)
+# El motor rechaza con un privilegio que falta o con un trigger; los dos salen como insufficient_privilege (42501).
+RECHAZOS = (psycopg.errors.InsufficientPrivilege,)
 
-I6_PENDIENTE = pytest.mark.xfail(
+I6_ROLES_PENDIENTE = pytest.mark.xfail(
     strict=True,
-    reason="I6 aún no está en el motor: lo agregan T19 (roles) y T23 (bitácora) de Persona B; ver db/README.md, «Pendiente». "
+    reason="Aún no hay un rol de la aplicación sin privilegios: lo agrega T19 (Persona B); ver db/README.md, «Pendiente». "
            "Cuando exista, esta prueba pasará y strict la marcará como fallo: entonces se quita la marca.")
 
 
@@ -104,15 +107,16 @@ def test_la_bitacora_sigue_admitiendo_filas_nuevas_I6(con, mundo):
     assert con.execute("SELECT count(*) AS n FROM registro_auditoria WHERE id = %s", (fila,)).fetchone()["n"] == 1
 
 
-@I6_PENDIENTE
 @pytest.mark.parametrize("sentencia", [
     "UPDATE registro_auditoria SET accion = 'ESCRITURA' WHERE id = {fila}",
+    "UPDATE registro_auditoria SET ocurrido_en = ocurrido_en - interval '1 day' WHERE id = {fila}",     # reescribir la fecha
     "DELETE FROM registro_auditoria WHERE id = {fila}",
     "TRUNCATE registro_auditoria",
-], ids=["update", "delete", "truncate"])
+    "TRUNCATE usuario CASCADE",                    # vaciar una tabla a la que apunta arrastra a la bitácora: el trigger también salta
+], ids=["update", "update_de_la_fecha", "delete", "truncate", "truncate_en_cascada"])
 def test_el_motor_rechaza_modificar_o_borrar_la_bitacora_I6(con, mundo, sentencia):
-    """Con la conexión que usa la aplicación. Hoy esa conexión es la del dueño de la tabla (y superusuario): solo un trigger
-    la frena, porque un privilegio revocado no detiene al dueño."""
+    """Con la conexión que usa la aplicación. Hoy esa conexión es la del dueño de la tabla (y superusuario): solo el trigger
+    de la migración 010 la frena, porque un privilegio revocado no detiene al dueño."""
     fila = bitacora(con, mundo)
     with pytest.raises(RECHAZOS):
         with con.transaction():                     # punto de guardado: tras el error la prueba puede seguir consultando
@@ -120,7 +124,7 @@ def test_el_motor_rechaza_modificar_o_borrar_la_bitacora_I6(con, mundo, sentenci
     assert con.execute("SELECT accion FROM registro_auditoria WHERE id = %s", (fila,)).fetchone()["accion"] == "LECTURA"
 
 
-@I6_PENDIENTE
+@I6_ROLES_PENDIENTE
 def test_ningun_rol_de_la_aplicacion_puede_modificar_ni_borrar_la_bitacora_I6(con):
     """Los privilegios son la primera barrera, pero solo valen si la aplicación NO se conecta como superusuario ni como dueño."""
     roles = [r["rolname"] for r in con.execute("SELECT rolname FROM pg_roles WHERE rolcanlogin AND NOT rolsuper")]

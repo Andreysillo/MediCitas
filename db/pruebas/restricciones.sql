@@ -252,6 +252,16 @@ BEGIN
            VALUES ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000a01',
                    '00000000-0000-0000-0000-0000000000f9', 'LECTURA', 'NOTA_CLINICA')$f$);
 
+    -- ===== Bitácora append-only (I6, migración 010): admite filas nuevas y nada más, ni siquiera el dueño o un superusuario =====
+    PERFORM pg_temp.debe_pasar('bitácora: una fila nueva sí se agrega',
+        $f$INSERT INTO registro_auditoria (clinica_id, usuario_id, paciente_id, accion, recurso)
+           VALUES ('00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000a01',
+                   '00000000-0000-0000-0000-0000000000f1', 'LECTURA', 'NOTA_CLINICA')$f$);
+    PERFORM pg_temp.debe_fallar('I6 bitácora: no se modifica', '42501', $f$UPDATE registro_auditoria SET accion = 'ESCRITURA'$f$);
+    PERFORM pg_temp.debe_fallar('I6 bitácora: no se borra', '42501', $f$DELETE FROM registro_auditoria$f$);
+    PERFORM pg_temp.debe_fallar('I6 bitácora: no se vacía', '42501', $f$TRUNCATE registro_auditoria$f$);
+    PERFORM pg_temp.debe_fallar('I6 bitácora: tampoco en cascada desde otra tabla', '42501', $f$TRUNCATE usuario CASCADE$f$);
+
     RAISE NOTICE '--- todas las restricciones respondieron como se esperaba ---';
 END $$;
 
