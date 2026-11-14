@@ -125,6 +125,25 @@ se toca (ids del camino) y `ref` la de lo que se menciona (consulta y cuerpo). V
 tres servicios (filtros de clínica quitados, `?clinica_id=` aceptado, 403 contra 404, un mensaje distinto, un reporte que
 suma todas las clínicas): las 10 hacen fallar el barrido.
 
+### Matriz de permisos y token (RF17, T29)
+
+Cada servicio tiene `tests/test_permisos.py` con la matriz del enunciado escrita como tabla: por ruta, qué roles entran
+(`SI`, `PROPIOS` o ausente, que significa 403). Reutiliza las solicitudes de `test_aislamiento_i5.RUTAS`, así que una
+ruta nueva necesita su fila en las dos tablas. El motor está en [pruebas_comunes/permisos.py](pruebas_comunes/permisos.py) y exige:
+
+- **401** sin sesión, con una cabecera que no es un id o con un usuario que no existe. **403** si fue dado de baja.
+- **403** para el rol sin permiso, y **2xx** para el rol con permiso sobre datos válidos de su clínica (si no, una ruta
+  rota pasaría por "segura").
+- **`PROPIOS`**: lo del colega (el segundo profesional del mundo) es 404 como lo inexistente; para el administrador, lo
+  mismo es 2xx.
+- **El token de verdad** (`AUTH_MODO=keycloak`), firmando tokens con una llave propia en vez de levantar Keycloak:
+  401 sin `Authorization`, con otro esquema, con basura, con otra firma, vencido, de otro emisor, un id_token, sin
+  `sub`, con un `sub` desconocido o sin firma (`alg: none`); 403 con el rol equivocado o dado de baja; 503 si no se
+  pueden consultar las llaves del proveedor.
+
+RF20 (agenda del día) y RF21 (reportes) no están en la matriz del enunciado; las filas dicen lo que decidimos.
+Validado con 17 permisos rotos a mano, incluidos 6 en `comun/sesion.py`: los 17 hacen fallar las pruebas.
+
 ## Reglas entre servicios y tareas
 
 - **Bloqueo de fila sobre el profesional (y el paciente).** Toda operación que cambie lo que el profesional puede
