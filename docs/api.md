@@ -62,12 +62,13 @@ healthchecks.
 
 ## Agenda
 
-### Listar profesionales gestionables
+### Listar profesionales
 
-`GET /api/agenda/profesionales` · RF5 · `ADM_CLINICA`, `PROFESIONAL`
+`GET /api/agenda/profesionales` · RF5, RF7 · `ADM_CLINICA`, `RECEPCION`, `PROFESIONAL`
 
-Los profesionales cuyo horario puede gestionar quien llama: el administrador ve todos los de su clínica, y un
-profesional solo se ve a sí mismo.
+Los profesionales que quien llama ve en la agenda: el administrador y recepción ven todos los de su clínica (recepción
+los necesita para elegir uno al reservar), y un profesional solo se ve a sí mismo. Verlos no da permiso de gestionar el
+horario: eso sigue siendo del administrador y del propio profesional.
 
 **Respuesta 200**
 

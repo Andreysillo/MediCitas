@@ -13,7 +13,7 @@ CONSULTA = dict(admin=SI, recepcion=SI, profesional=SI)           # Consultar di
 AGENDAR = dict(admin=SI, recepcion=SI)                            # Reservar, reprogramar y cancelar (RF9 a RF11)
 
 MATRIZ = {
-    "GET /profesionales": dict(admin=SI, profesional=SI),         # los que puede gestionar: el profesional, solo a sí mismo
+    "GET /profesionales": CONSULTA,                                # los que puede ver: el profesional, solo a sí mismo; recepción necesita elegir uno para reservar
     "GET /profesionales/{profesional_id}/horarios": GESTION,
     "POST /profesionales/{profesional_id}/horarios": GESTION,
     "DELETE /horarios/{horario_id}": GESTION,
@@ -40,4 +40,4 @@ def test_cada_rol_recibe_lo_que_dice_la_matriz_RF17(cliente, con, ruta):
 
 
 def test_sin_token_valido_401_y_sin_el_rol_403_RF17(cliente, con, monkeypatch):
-    probar_token(cliente, con, monkeypatch, "/profesionales", permitido="admin", negado="recepcion")
+    probar_token(cliente, con, monkeypatch, "/profesionales", permitido="admin", negado="plataforma")

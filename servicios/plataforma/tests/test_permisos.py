@@ -11,6 +11,7 @@ PLATAFORMA = dict(plataforma=SI)                                  # Alta de clí
 ADMIN = dict(admin=SI)                                            # Usuarios, servicios y profesionales (RF2 a RF4)
 LEEN = dict(admin=SI, recepcion=SI, profesional=SI)               # Pacientes: el profesional solo lee (RF14); historial (RF16)
 ESCRIBEN = dict(admin=SI, recepcion=SI)
+LEEN_CATALOGO = LEEN                                              # Leer servicios y profesionales: ampliación justificada en catalogo.py
 NOTA = dict(profesional=PROPIOS)                                  # Nota clínica, solo de citas propias (RF15)
 
 MATRIZ = {
@@ -22,10 +23,10 @@ MATRIZ = {
     "PATCH /usuarios/{usuario_id}/activo": ADMIN,
     "GET /especialidades": ADMIN,
     "POST /especialidades": ADMIN,
-    "GET /servicios": ADMIN,
+    "GET /servicios": LEEN_CATALOGO,
     "POST /servicios": ADMIN,
     "PATCH /servicios/{servicio_id}": ADMIN,
-    "GET /profesionales": ADMIN,
+    "GET /profesionales": LEEN_CATALOGO,
     "GET /profesionales/usuarios-libres": ADMIN,
     "POST /profesionales": ADMIN,
     "PUT /profesionales/{profesional_id}": ADMIN,

@@ -26,10 +26,25 @@ def servicio(especialidad, **cambios):
 
 # ---------- permisos ----------
 
+@pytest.mark.parametrize("quien", ["recepcion", "profesional"])
+def test_recepcion_y_profesional_leen_los_servicios_pero_no_los_modifican(cliente, mundo, especialidad, quien):
+    """Leer el catálogo amplía la matriz (ver catalogo.py): recepción reserva y el profesional consulta disponibilidad, y ambos
+    necesitan el `servicio_id`. Crear y editar siguen siendo del administrador."""
+    h = como(getattr(mundo, quien))
+    creado = cliente.post("/servicios", json=servicio(especialidad), headers=como(mundo.admin_clinica)).json()["id"]
+    r = cliente.get("/servicios", headers=h)
+    assert r.status_code == 200 and creado in {s["id"] for s in r.json()}
+    assert cliente.post("/servicios", json=servicio(especialidad), headers=h).status_code == 403
+    cambio = {"nombre": "Otro nombre", "duracion_minutos": 30, "activo": True}
+    assert cliente.patch(f"/servicios/{creado}", json=cambio, headers=h).status_code == 403
+    assert cliente.get("/especialidades", headers=h).status_code == 403
+
+
 @pytest.mark.parametrize("quien", ["recepcion", "profesional", "plataforma"])
 def test_otros_roles_reciben_403(cliente, mundo, especialidad, quien):
     h = como(getattr(mundo, quien))
-    assert cliente.get("/servicios", headers=h).status_code == 403
+    if quien == "plataforma":    # no es de ninguna clínica: no ve el catálogo de ninguna
+        assert cliente.get("/servicios", headers=h).status_code == 403
     assert cliente.post("/servicios", json=servicio(especialidad), headers=h).status_code == 403
     assert cliente.get("/especialidades", headers=h).status_code == 403
     assert cliente.post("/especialidades", json={"nombre": "Pediatría"}, headers=h).status_code == 403

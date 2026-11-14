@@ -41,10 +41,21 @@ def alta(cliente, mundo, libre, general, servicios=(), **cambios):
 
 # ---------- permisos ----------
 
+@pytest.mark.parametrize("quien", ["recepcion", "profesional"])
+def test_recepcion_y_profesional_leen_la_lista_pero_no_la_modifican(cliente, mundo, libre, general, quien):
+    """Leer la lista amplía la matriz (ver catalogo.py): recepción la necesita para reservar. Registrar y editar, no."""
+    h = como(getattr(mundo, quien))
+    r = cliente.get("/profesionales", headers=h)
+    de_admin = cliente.get("/profesionales", headers=como(mundo.admin_clinica)).json()
+    assert r.status_code == 200 and r.json() == de_admin and de_admin      # la misma lista, y el mundo trae un profesional
+    assert cliente.post("/profesionales", json={"usuario_id": str(libre), **datos(general)}, headers=h).status_code == 403
+
+
 @pytest.mark.parametrize("quien", ["recepcion", "profesional", "plataforma"])
 def test_otros_roles_reciben_403(cliente, mundo, libre, general, quien):
     h = como(getattr(mundo, quien))
-    assert cliente.get("/profesionales", headers=h).status_code == 403
+    if quien == "plataforma":
+        assert cliente.get("/profesionales", headers=h).status_code == 403
     assert cliente.get("/profesionales/usuarios-libres", headers=h).status_code == 403
     assert cliente.post("/profesionales", json={"usuario_id": str(libre), **datos(general)}, headers=h).status_code == 403
     assert cliente.put(f"/profesionales/{uuid.uuid4()}", json=datos(general), headers=h).status_code == 403

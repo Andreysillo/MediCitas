@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from medicitas_comun import CONEXION, Sesion
+from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
 from . import cache, conflictos
 from .esquemas import Horario, HorarioEliminado, NuevoHorario, ProfesionalResumen
@@ -16,8 +16,10 @@ _COLUMNAS = "id, profesional_id, dia_semana, to_char(hora_inicio, 'HH24:MI') AS 
 
 
 @router.get("/profesionales", response_model=list[ProfesionalResumen])
-def profesionales_gestionables(sesion: Sesion = Depends(puede_gestionar), con=CONEXION):
-    """Los profesionales cuyo horario puede gestionar quien consulta: todos los de su clínica, o solo él mismo."""
+def profesionales_gestionables(sesion: Sesion = Depends(sesion_de_clinica), con=CONEXION):
+    """Los profesionales que quien consulta puede ver en la agenda: todos los de su clínica (administrador y recepción, que
+    reserva y necesita elegir uno) o solo él mismo (el profesional). Cualquier rol con clínica puede pedirla; gestionar el
+    horario de alguno sigue siendo del administrador y del propio profesional (`puede_gestionar`)."""
     return con.execute(
         """SELECT p.id, u.nombre, e.nombre AS especialidad
              FROM profesional p

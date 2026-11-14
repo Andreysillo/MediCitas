@@ -7,7 +7,11 @@ QUÉ RUTA CUMPLE CADA PARTE:
   - «nombre, duración en minutos» → NuevoServicio / CambioServicio en esquemas.py (duración de 5 a 480).
   - «la especialidad que requiere» → `especialidad_id` en NuevoServicio. Las especialidades son un catálogo propio de
     cada clínica, por eso este archivo también trae GET/POST /especialidades (apoyo de RF3: sin ellas no hay a qué apuntar).
-  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica`.
+  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica` para escribir.
+    LEER servicios y profesionales (GET /servicios, GET /profesionales) lo pueden todos los roles de la clínica
+    (`lee_catalogo`): amplía la matriz, que permite ampliarla si se justifica. Sin esa lectura, recepción (que reserva,
+    RF9) y el profesional (que consulta disponibilidad, RF7) no tendrían de dónde sacar el `servicio_id` que esas
+    rutas piden. Lo que no se amplía: crear, editar, GET /especialidades y GET /profesionales/usuarios-libres.
 Relación con otros requisitos: I4 (la duración del servicio fija el tamaño de la cita), RF4 (un profesional solo atiende
 servicios de su especialidad), RF7/RF9 (agenda lee `duracion_minutos` y `activo`).
 
@@ -48,6 +52,12 @@ def admin_de_clinica(sesion: Sesion = Depends(sesion_de_clinica)) -> Sesion:
     return sesion
 
 
+def lee_catalogo(sesion: Sesion = Depends(sesion_de_clinica)) -> Sesion:
+    """Leer el catálogo (servicios y profesionales): cualquier rol con clínica. `sesion_de_clinica` ya deja fuera al
+    administrador de plataforma (403: no ve datos de clínicas) y a quien no tiene sesión (401)."""
+    return sesion
+
+
 # ---------- Especialidades ----------
 
 
@@ -74,8 +84,8 @@ _SERVICIO = """SELECT s.id, s.nombre, s.duracion_minutos, s.especialidad_id, e.n
                WHERE s.clinica_id = %s"""
 
 
-@router.get("/servicios", response_model=list[Servicio], responses=_ERRORES)
-def listar_servicios(sesion: Sesion = Depends(admin_de_clinica), con=CONEXION):
+@router.get("/servicios", response_model=list[Servicio], responses={401: _ERRORES[401], 403: {"description": "No eres de una clínica"}})
+def listar_servicios(sesion: Sesion = Depends(lee_catalogo), con=CONEXION):
     """Todos los servicios de la clínica, también los desactivados."""
     return con.execute(_SERVICIO + " ORDER BY e.nombre, s.nombre", (sesion.clinica_id,)).fetchall()
 

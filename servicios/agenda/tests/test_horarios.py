@@ -42,9 +42,10 @@ def test_sin_sesion_o_con_usuario_invalido(cliente, mundo):
 
 
 def test_permisos_por_rol(cliente, mundo):
+    # Gestionar el horario: recepción y plataforma no. (Ver la lista de profesionales sí lo puede recepción: abajo.)
     for quien in (mundo.recepcion, mundo.plataforma):
-        assert cliente.get("/profesionales", headers=como(quien)).status_code == 403
         assert crear(cliente, quien, mundo.prof).status_code == 403
+    assert cliente.get("/profesionales", headers=como(mundo.plataforma)).status_code == 403   # no es de ninguna clínica
 
 
 def test_el_profesional_solo_gestiona_lo_suyo(cliente, mundo):
@@ -65,6 +66,12 @@ def test_profesionales_gestionables(cliente, mundo):
     assert {p["nombre"] for p in admin} == {"Dra. Uno", "Dr. Dos"}
     propio = cliente.get("/profesionales", headers=como(mundo.usuario_prof)).json()
     assert [p["nombre"] for p in propio] == ["Dra. Uno"]
+
+
+def test_recepcion_ve_todos_los_profesionales_para_poder_reservar(cliente, mundo):
+    """Recepción reserva (RF9) y necesita el id del profesional; antes recibía 403 y no tenía cómo obtenerlo por la API."""
+    r = cliente.get("/profesionales", headers=como(mundo.recepcion))
+    assert r.status_code == 200 and {p["nombre"] for p in r.json()} == {"Dra. Uno", "Dr. Dos"}
 
 
 def test_quitar_un_bloque_lista_las_reservas_que_quedan_fuera_I3(cliente, mundo, con):

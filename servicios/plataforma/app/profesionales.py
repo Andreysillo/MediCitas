@@ -8,7 +8,9 @@ QUÉ RUTA CUMPLE CADA PARTE:
   - «Un profesional atiende solo los servicios que tiene asociados» (sección de entidades del enunciado) → esa tabla,
     y la clave foránea de `cita` hacia ella lo hace cumplir en el motor.
   - (para armar la pantalla) GET /profesionales y GET /profesionales/usuarios-libres; no los pide el enunciado.
-  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica`.
+  - Matriz de permisos: «Usuarios, servicios y profesionales: solo adm. de clínica» → `admin_de_clinica` para escribir.
+    GET /profesionales lo leen todos los roles de la clínica (`lee_catalogo`, ver catalogo.py: recepción lo necesita para
+    reservar y el profesional para consultar disponibilidad).
 Relación con otros requisitos: RF2 (el profesional ES un usuario con rol PROFESIONAL), RF3 (sus servicios son del
 catálogo y de su especialidad), RF5/RF6 (el horario y los bloqueos cuelgan de la fila `profesional`), RF7/RF9.
 
@@ -31,6 +33,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
+from .catalogo import lee_catalogo
 from .esquemas import DatosProfesional, NuevoProfesional, Profesional, UsuarioLibre
 
 router = APIRouter(prefix="/profesionales", tags=["RF4 · Profesionales"])
@@ -91,8 +94,8 @@ def _aplicar_servicios(con, sesion: Sesion, profesional_id: UUID, ids: list[UUID
     )
 
 
-@router.get("", response_model=list[Profesional], responses=_ERRORES)
-def listar_profesionales(sesion: Sesion = Depends(admin_de_clinica), con=CONEXION):
+@router.get("", response_model=list[Profesional], responses={401: _ERRORES[401], 403: {"description": "No eres de una clínica"}})
+def listar_profesionales(sesion: Sesion = Depends(lee_catalogo), con=CONEXION):
     """Profesionales de la clínica, con los ids de los servicios que tienen habilitados."""
     return con.execute(_PROFESIONAL + _AGRUPAR + " ORDER BY u.nombre", (sesion.clinica_id,)).fetchall()
 
