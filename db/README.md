@@ -18,10 +18,12 @@ db/
 | `002_identidad.sql` | `clinica`, `rol` (datos fijos), `especialidad`, `usuario` |
 | `003_agenda.sql` | `profesional`, `servicio`, `profesional_servicio`, `horario_atencion`, `bloqueo_agenda` |
 | `004_citas.sql` | `paciente`, `cita` con las exclusiones de **I1** e **I2**, `nota_clinica` |
-| `005_auditoria.sql` | `registro_auditoria` (solo la tabla; ver "Pendiente") |
+| `005_auditoria.sql` | `registro_auditoria` (solo la tabla; la protección de I6 llega en 010) |
 | `006_funciones_agenda.sql` | `cabe_en_horario()`: la única definición de "la cita cabe en el horario" (I3), usada por la reserva y por los conflictos de RF5 |
 | `007_cita_protegida.sql` | Trigger `cita_protegida`: los estados finales no admiten salida (RF13) y los datos de una cita no se editan (I4) |
 | `008_indices.sql` | Índices de bloqueos por profesional y rango, y de citas reservadas pendientes (T15; ver «Índices») |
+| `009_indice_agenda_del_dia.sql` | Índice `cita (clinica_id, inicio)` para la agenda del día (RF20) y el conteo por estado (RF21) |
+| `010_bitacora_solo_agregar.sql` | Trigger que rechaza `UPDATE`, `DELETE` y `TRUNCATE` sobre `registro_auditoria` (I6, primera barrera; ver «Pendiente») |
 
 Reglas para cambiar el esquema:
 - Un cambio nuevo es **la migración siguiente** (`008_...sql`). Nunca se edita una migración que ya se
@@ -85,6 +87,7 @@ docker compose --profile pruebas run --rm pruebas-agenda python -m tests.medir_c
 | RF6: listar bloqueos | 3,88 ms | ~0,1 ms | Ídem |
 | RF5 y RF6: citas reservadas en conflicto | 4,29 ms | ~0,65 ms | `cita_reservadas_por_profesional`: leía 6 867 citas para devolver 86 |
 | RF2 (plataforma): pendientes al dar de baja | 2,25 ms | ~0,12 ms | Ídem |
+| RF20 (B): la agenda de un día de una clínica | 126 ms | ~2,2 ms | `cita_por_clinica_e_inicio` (migración 009): `cita` se leía entera para filtrar por clínica y por día |
 
 Medianas en la misma computadora; "antes" es el código y el esquema sin T15. Con solo la semilla (unas 2 000 citas) no hay
 diferencia: RF7 tarda unos 1,6 ms y RF8 unos 14 ms con los dos códigos, porque con tablas chicas el motor prefiere leerlas
@@ -102,8 +105,7 @@ Lo que se decidió y por qué:
 
 Límites conocidos: `CREATE INDEX` bloquea las escrituras de la tabla mientras se construye, porque `aplicar.sh` corre cada
 migración en una transacción. En producción, con tablas grandes, se usaría `CREATE INDEX CONCURRENTLY`, que no puede ir
-dentro de una transacción. Las consultas de B que aún no existen (historial del paciente, bitácora) necesitarán sus propios
-índices cuando se escriban.
+dentro de una transacción. La consulta del historial del paciente y la de la bitácora de B quedan sin medir.
 
 ## Para quien escribe la lógica de las citas
 
@@ -119,10 +121,10 @@ dentro de una transacción. Las consultas de B que aún no existen (historial de
 
 ## Pendiente
 
-- Roles de base de datos con menor privilegio y la protección de `registro_auditoria` contra `UPDATE`,
-  `DELETE` y `TRUNCATE` (I6), con trigger de respaldo (T19 y T23). **Hoy no existe**: los tres servicios se conectan con
-  el usuario de `POSTGRES_USER`, que es superusuario y dueño de la tabla, y la tabla no tiene triggers, así que pueden
-  modificar y borrar la bitácora. Un privilegio revocado no frena al dueño: hace falta el trigger, y que los servicios se
-  conecten con roles que no sean dueños. Las pruebas que lo exigen ya están en
-  `servicios/agenda/tests/test_invariantes_i3_i6.py`, marcadas `xfail(strict=True)`: hoy salen `xfailed`, y cuando la
-  protección exista fallarán a propósito para recordar que hay que quitarles la marca.
+- Roles de base de datos con menor privilegio (T19, Persona B). **I6 está a medias**: la migración 010 pone el trigger, que
+  rechaza `UPDATE`, `DELETE` y `TRUNCATE` sobre `registro_auditoria` aunque quien lo intente sea el dueño o un superusuario
+  (probado en `db/pruebas/restricciones.sql` y en `servicios/agenda/tests/test_invariantes_i3_i6.py`). Falta la otra barrera:
+  los tres servicios todavía se conectan con el usuario de `POSTGRES_USER`, que es superusuario y dueño, así que pueden
+  desactivar el trigger (`ALTER TABLE … DISABLE TRIGGER`) o borrar la tabla. Hacen falta roles sin `UPDATE`, `DELETE` ni
+  `TRUNCATE` sobre la bitácora y que no sean dueños. Su prueba ya está escrita, marcada `xfail(strict=True)`: hoy sale
+  `xfailed`, y cuando el rol exista fallará a propósito para recordar que hay que quitarle la marca.

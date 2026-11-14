@@ -40,7 +40,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
     ports:
-      - "${PUERTO_BD}:5432"
+      # Solo el equipo local (127.0.0.1): la base no se expone a la red. Con valor por defecto, un .env viejo no la deja sin puerto.
+      - "127.0.0.1:${PUERTO_BD:-5423}:5432"
     volumes:
       # Volumen nombrado: los datos sobreviven a `docker compose down` (no a `down -v`).
       - datos_postgres:/var/lib/postgresql/data
