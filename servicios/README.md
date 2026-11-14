@@ -102,6 +102,29 @@ En las de integración, `tests/conftest.py` arma un "mundo" mínimo por prueba (
 profesionales, un paciente) y da `mundo.cita(...)` para crear citas. Casi todas se deshacen con ROLLBACK, así que no
 dependen de la semilla ni dejan datos; las que necesitan datos confirmados (concurrencia y caché) borran lo que crean.
 
+### Aislamiento entre clínicas (I5, T26)
+
+Cada servicio tiene `tests/test_aislamiento_i5.py`: una tabla con **todas** sus rutas y cómo se arma cada solicitud.
+El motor que las ataca es uno solo, [pruebas_comunes/aislamiento.py](pruebas_comunes/aislamiento.py), que el Dockerfile
+copia junto a las pruebas (fuera de `comun/` para que no llegue a la imagen de producción). Arma dos clínicas iguales:
+la víctima lleva un "canario" (una palabra única) en cada texto. Desde cada rol de la otra clínica, y como administrador
+de plataforma, prueba en cada ruta:
+
+| Intento | Qué se exige |
+|---|---|
+| Ids ajenos en el camino, la consulta o el cuerpo (solos o mezclados con propios) | La misma respuesta, código **y** mensaje, que con ids inventados: no se revela que el dato existe |
+| Buscar por texto (identificación del paciente ajeno) | Ninguna respuesta trae el canario ni ids ajenos |
+| `clinica_id` en la consulta y el cuerpo, cabecera `X-Clinica-Id` | No cambia nada: la clínica sale de la sesión |
+| Cualquier escritura | Los datos de la víctima quedan idénticos (un md5 por tabla con `clinica_id`; una tabla nueva queda vigilada sola) |
+| Lecturas propias | Lo que el atacante ve de su clínica es idéntico exista o no la víctima (atrapa un conteo que suma otra clínica) |
+| Control | Con los ids propios la ruta sí funciona para algún rol: los 404 son por la clínica, no por una solicitud mal armada |
+
+**Una ruta nueva que no se agregue a la tabla hace fallar `test_todas_las_rutas_estan_en_el_barrido`.** Para agregarla:
+una línea `"MÉTODO /camino/{param}": lambda w, ref: dict(url=..., params=..., json=...)`, con `w` la clínica de lo que
+se toca (ids del camino) y `ref` la de lo que se menciona (consulta y cuerpo). Validado plantando 10 fugas distintas en los
+tres servicios (filtros de clínica quitados, `?clinica_id=` aceptado, 403 contra 404, un mensaje distinto, un reporte que
+suma todas las clínicas): las 10 hacen fallar el barrido.
+
 ## Reglas entre servicios y tareas
 
 - **Bloqueo de fila sobre el profesional (y el paciente).** Toda operación que cambie lo que el profesional puede
