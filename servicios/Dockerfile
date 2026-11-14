@@ -20,6 +20,8 @@ ARG SERVICIO
 COPY ${SERVICIO}/requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY ${SERVICIO}/tests ./tests
+# El barrido de fugas entre clínicas (I5, T26) es el mismo para los tres servicios: una sola copia en pruebas_comunes/.
+COPY pruebas_comunes/aislamiento.py ./tests/
 USER nobody
 CMD ["python", "-m", "pytest", "-p", "no:cacheprovider", "-q"]
 
