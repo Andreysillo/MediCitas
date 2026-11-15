@@ -2,25 +2,63 @@
 
 ## Levantar todo
 
-Requisito: Docker con Compose.
+Requisito: Docker Desktop (o Docker con Compose) **encendido**.
 
 ```bash
-cp .env.example .env          # y cambiar las contraseñas
-docker compose up -d --build
-docker compose ps             # todo "healthy"; migraciones "Exited (0)"
+cp .env.example .env          # la primera vez; después, cambiar las contraseñas
+docker compose up -d --build  # construye y levanta todo; la primera vez tarda unos minutos
+docker compose ps             # todo "healthy"; "migraciones" en "Exited (0)"
 ```
 
-Abre http://localhost:8080. La documentación de cada API está en `/api/agenda/docs`, `/api/plataforma/docs`
-y `/api/auditoria/docs`, y resumida, con roles y errores, en [docs/api.md](docs/api.md).
+Si ya tenías un `.env` de antes, compáralo con `.env.example`: cada variable nueva que falte detiene el compose con un
+mensaje `falta X en .env`. Las últimas en agregarse fueron `AGENDA_DB_PASSWORD`, `PLATAFORMA_DB_PASSWORD` y
+`AUDITORIA_DB_PASSWORD` (los roles de cada servicio, migración 011). Con una base que ya existía, `up` aplica solo las
+migraciones nuevas y conserva los datos.
 
 | Contenedor | Qué hace |
 |---|---|
-| `db` | PostgreSQL 16. Sin puerto publicado |
-| `migraciones` | Aplica el esquema y la semilla nuevos, y termina ([db/](db/README.md)) |
+| `db` | PostgreSQL 16. Publicado solo en el equipo local, `127.0.0.1:${PUERTO_BD}` (5423), para pgAdmin o psql |
+| `migraciones` | Aplica el esquema y la semilla nuevos, habilita los roles de cada servicio, y termina ([db/](db/README.md)) |
 | `keycloak` | Proveedor de identidad (RF17). Importa `keycloak/realm-export.json` al arrancar: nada se configura a mano |
 | `redis` | Caché de la disponibilidad (RF7). Sin disco y sin puerto publicado: si se apaga, agenda sigue desde la base |
-| `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)) |
-| `web` | El frontend compilado y el gateway hacia las APIs |
+| `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)). Cada una entra a la base con su propio rol |
+| `web` | El frontend compilado y el gateway hacia las APIs y Keycloak, en http://localhost:8080 |
+
+### Qué se puede probar y cómo
+
+**El frontend (http://localhost:8080) es una demostración con datos en memoria: no llama a las APIs.** Sirve para ver
+las pantallas y los permisos por rol ("Probar la demo" y elegir un usuario), pero lo que se haga ahí no llega a la base
+y se pierde al recargar. Ver [Frontend en modo desarrollo](#frontend-en-modo-desarrollo).
+
+**El sistema real se prueba contra las APIs**, con un token de Keycloak, igual que lo haría un cliente:
+
+```bash
+# 1. Token de un usuario de prueba (contraseña medicitas123; la lista está en «Identidad»)
+TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-connect/token   -d grant_type=password -d client_id=medicitas-api   -d username=san-rafael-recepcion -d password=medicitas123 | jq -r .access_token)
+
+# 2. Catálogo: un servicio y un profesional que lo atienda
+curl -s http://localhost:8080/api/plataforma/servicios      -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8080/api/plataforma/profesionales  -H "Authorization: Bearer $TOKEN"
+
+# 3. Espacios libres (RF7) y reserva (RF9) con un paciente de GET /api/plataforma/pacientes
+curl -s "http://localhost:8080/api/agenda/profesionales/<profesional_id>/disponibilidad?servicio_id=<servicio_id>&fecha=2026-11-20"   -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8080/api/agenda/citas -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"   -d '{"paciente_id":"<paciente_id>","profesional_id":"<profesional_id>","servicio_id":"<servicio_id>","inicio":"<un espacio del paso 3>"}'
+```
+
+Cada ruta, con su cuerpo, sus roles y sus errores, está en [docs/api.md](docs/api.md); la referencia generada, en
+`/api/agenda/docs`, `/api/plataforma/docs` y `/api/auditoria/docs`.
+
+**Las pruebas automáticas** corren contra la misma base real, cada servicio por separado:
+
+```bash
+docker compose --profile pruebas run --rm pruebas-agenda
+docker compose --profile pruebas run --rm pruebas-plataforma
+docker compose --profile pruebas run --rm pruebas-auditoria
+```
+
+Qué cubre cada una: [servicios/README.md](servicios/README.md#pruebas).
+
+### Comandos útiles
 
 - `docker compose logs -f agenda`: logs en JSON de un servicio.
 - `docker compose down`: apaga todo y conserva los datos. `down -v`: también borra la base.
@@ -117,7 +155,7 @@ TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-conn
 curl -s http://localhost:8080/api/agenda/profesionales -H "Authorization: Bearer $TOKEN"
 ```
 
-Con `san-rafael-admin` devuelve los profesionales de su clínica; sin token, 401; con `san-rafael-recepcion`, 403.
+Con `san-rafael-admin` devuelve los profesionales de su clínica, y sin token, 401. Con `san-rafael-recepcion`, `/api/auditoria/bitacora` responde 403: la bitácora es solo del administrador de la clínica.
 
 (`grant_type=password` es cómodo para pruebas y para la colección de peticiones; en un login real del
 frontend sería *authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae
