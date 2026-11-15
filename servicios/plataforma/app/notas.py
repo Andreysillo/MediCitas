@@ -1,18 +1,18 @@
-"""RF15: adjuntar una nota clínica a una cita atendida. Solo la escribe el profesional que atendió esa cita.
+﻿"""RF15: adjuntar una nota clÃ­nica a una cita atendida. Solo la escribe el profesional que atendiÃ³ esa cita.
 
-QUÉ RUTA CUMPLE CADA PARTE:
-  - «adjuntar una nota a una cita atendida» → PUT /citas/{id}/nota (`guardar_nota`): crea la nota o reemplaza su
-    contenido (a lo más una por cita, lo garantiza el UNIQUE de `nota_clinica.cita_id`).
-  - «solo la escribe el profesional que atendió esa cita» → `solo_profesional` (rol) y la consulta de `_cita_propia`
-    (la cita debe ser de un `profesional` cuyo `usuario_id` es el de la sesión).
-  - (para armar la pantalla) GET /citas/{id}/nota; la lectura también está restringida a ese profesional.
-  - Matriz de permisos: «Nota clínica: solo el profesional, de citas propias»; administrador, recepción y plataforma
-    reciben 403. La matriz es mínima y no los deja leerla.
+QUÃ‰ RUTA CUMPLE CADA PARTE:
+  - Â«adjuntar una nota a una cita atendidaÂ» â†’ PUT /citas/{id}/nota (`guardar_nota`): crea la nota o reemplaza su
+    contenido (a lo mÃ¡s una por cita, lo garantiza el UNIQUE de `nota_clinica.cita_id`).
+  - Â«solo la escribe el profesional que atendiÃ³ esa citaÂ» â†’ `solo_profesional` (rol) y la consulta de `_cita_propia`
+    (la cita debe ser de un `profesional` cuyo `usuario_id` es el de la sesiÃ³n).
+  - (para armar la pantalla) GET /citas/{id}/nota; la lectura tambiÃ©n estÃ¡ restringida a ese profesional.
+  - Matriz de permisos: Â«Nota clÃ­nica: solo el profesional, de citas propiasÂ»; administrador, recepciÃ³n y plataforma
+    reciben 403. La matriz es mÃ­nima y no los deja leerla.
 
-Una cita de otro profesional o de otra clínica responde 404, igual que una inexistente: no se revela que existe (I5).
-El estado se valida con la cita ya ATENDIDA; como ATENDIDA es final (RF13), no puede cambiar a mitad de la operación.
+Una cita de otro profesional o de otra clÃ­nica responde 404, igual que una inexistente: no se revela que existe (I5).
+El estado se valida con la cita ya ATENDIDA; como ATENDIDA es final (RF13), no puede cambiar a mitad de la operaciÃ³n.
 
-Bitácora (RF18): leer y escribir una nota insertan una fila (recurso NOTA_CLINICA) en la MISMA transacción.
+BitÃ¡cora (RF18): leer y escribir una nota insertan una fila (recurso NOTA_CLINICA) en la MISMA transacciÃ³n.
 """
 
 from uuid import UUID
@@ -22,10 +22,10 @@ from medicitas_comun import CONEXION, Sesion, sesion_de_clinica
 
 from .esquemas import DatosNota, Nota
 
-router = APIRouter(prefix="/citas", tags=["RF15 · Nota clínica"])
+router = APIRouter(prefix="/citas", tags=["RF15 Â· Nota clÃ­nica"])
 
 _ERRORES = {
-    401: {"description": "Sin token válido"},
+    401: {"description": "Sin token vÃ¡lido"},
     403: {"description": "El rol no es profesional"},
     404: {"description": "La cita no existe o no es de este profesional"},
 }
@@ -33,7 +33,7 @@ _ERRORES = {
 
 def solo_profesional(sesion: Sesion = Depends(sesion_de_clinica)) -> Sesion:
     if sesion.rol != "PROFESIONAL":
-        raise HTTPException(403, "Solo el profesional que atendió la cita accede a su nota clínica")
+        raise HTTPException(403, "Solo el profesional que atendiÃ³ la cita accede a su nota clÃ­nica")
     return sesion
 
 
@@ -61,26 +61,26 @@ _COLUMNAS = "id, cita_id, contenido, creada_en, actualizada_en"
 
 
 @router.get("/{cita_id}/nota", response_model=Nota,
-            responses={**_ERRORES, 404: {"description": "La cita no es de este profesional o aún no tiene nota"}})
+            responses={**_ERRORES, 404: {"description": "La cita no es de este profesional o aÃºn no tiene nota"}})
 def ver_nota(cita_id: UUID, sesion: Sesion = Depends(solo_profesional), con=CONEXION):
-    """Lee la nota de una cita propia. Cada lectura queda en la bitácora (RF18)."""
+    """Lee la nota de una cita propia. Cada lectura queda en la bitÃ¡cora (RF18)."""
     cita = _cita_propia(con, sesion, cita_id)
     nota = con.execute(f"SELECT {_COLUMNAS} FROM nota_clinica WHERE cita_id = %s AND clinica_id = %s",
                        (cita_id, sesion.clinica_id)).fetchone()
     if nota is None:
-        raise HTTPException(404, "Esta cita todavía no tiene nota")
+        raise HTTPException(404, "Esta cita todavÃ­a no tiene nota")
     _auditar(con, sesion, cita["paciente_id"], "LECTURA")
     return nota
 
 
 @router.put("/{cita_id}/nota", response_model=Nota,
-            responses={**_ERRORES, 409: {"description": "La cita no está atendida"}, 422: {"description": "Nota vacía o demasiado larga"}})
+            responses={**_ERRORES, 409: {"description": "La cita no estÃ¡ atendida"}, 422: {"description": "Nota vacÃ­a o demasiado larga"}})
 def guardar_nota(cita_id: UUID, datos: DatosNota, sesion: Sesion = Depends(solo_profesional), con=CONEXION):
-    """Crea la nota de la cita o reemplaza su contenido. Solo sobre citas ATENDIDAS. Queda en la bitácora (RF18)."""
+    """Crea la nota de la cita o reemplaza su contenido. Solo sobre citas ATENDIDAS. Queda en la bitÃ¡cora (RF18)."""
     cita = _cita_propia(con, sesion, cita_id)
     if cita["estado"] != "ATENDIDA":
         raise HTTPException(409, "Solo se escribe una nota sobre una cita atendida")
-    # ON CONFLICT: dos guardados simultáneos no chocan con el UNIQUE; el último gana.
+    # ON CONFLICT: dos guardados simultÃ¡neos no chocan con el UNIQUE; el Ãºltimo gana.
     nota = con.execute(
         f"""INSERT INTO nota_clinica (clinica_id, cita_id, contenido) VALUES (%s, %s, %s)
             ON CONFLICT (cita_id) DO UPDATE SET contenido = EXCLUDED.contenido, actualizada_en = now()
