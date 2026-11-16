@@ -108,12 +108,19 @@ del administrador de la clínica. (`grant_type=password` es cómodo para pruebas
 
 ### Pruebas automáticas
 
-Corren contra la misma base real, cada servicio por separado:
+**Un solo comando corre todas las pruebas** (unitarias y de integración de los tres servicios), contra la misma base real:
 
 ```bash
-docker compose --profile pruebas run --rm pruebas-agenda
-docker compose --profile pruebas run --rm pruebas-plataforma
-docker compose --profile pruebas run --rm pruebas-auditoria
+bash pruebas.sh
+```
+
+No hay que preparar datos: las pruebas arman los suyos. Si un servicio falla, igual se corren los demás y el script termina
+con error; si pasan los tres, termina bien (tarda un par de minutos la primera vez, porque construye las imágenes).
+
+Para correr un solo servicio:
+
+```bash
+docker compose --profile pruebas run --rm pruebas-agenda        # o pruebas-plataforma, pruebas-auditoria
 ```
 
 Qué cubre cada una: [servicios/README.md](servicios/README.md#pruebas).
