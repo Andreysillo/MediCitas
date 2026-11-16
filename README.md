@@ -27,6 +27,7 @@ gateway del frontend (React + Vite). Todo levanta con un solo comando de Docker 
 | Base de datos: migraciones, semilla, índices y roles | [db/README.md](db/README.md) |
 | Servicios: reglas comunes, cómo agregar una ruta y las pruebas | [servicios/README.md](servicios/README.md) |
 | Servicio de agenda: reserva, ciclo de vida de la cita y caché | [servicios/agenda/README.md](servicios/agenda/README.md) |
+| **Informe de pruebas**: qué prueba cubre cada requisito funcional y cada invariante, y qué se midió | [docs/informe-pruebas.md](docs/informe-pruebas.md) |
 | Enunciado del proyecto | [docs/enunciado.md](docs/enunciado.md) |
 
 ## Levantar el sistema
@@ -148,7 +149,8 @@ Para correr un solo servicio:
 docker compose --profile pruebas run --rm pruebas-agenda        # o pruebas-plataforma, pruebas-auditoria
 ```
 
-Qué cubre cada una: [servicios/README.md](servicios/README.md#pruebas).
+Qué prueba cubre cada requisito funcional e invariante: [docs/informe-pruebas.md](docs/informe-pruebas.md). Cómo se organizan
+las pruebas y cuál escribir: [servicios/README.md](servicios/README.md#pruebas).
 
 ## Rutas de la API
 
