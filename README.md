@@ -163,7 +163,7 @@ configurado para cuando el frontend deje de usar datos en memoria.)
 
 Cómo se asocia cada identidad con su clínica, y el resto de las decisiones de este módulo (por qué no se
 valida `aud`, por qué el realm no persiste datos propios) están documentadas en
-[docs/diseno-modelo-logico.md](docs/diseno-modelo-logico.md#10-identidad-delegada-keycloak).
+[docs/diseno-seguridad.md](docs/diseno-seguridad.md#2-identidad-delegada-keycloak).
 
 ## Decisiones de diseño
 
