@@ -13,6 +13,7 @@ gateway del frontend (React + Vite). Todo levanta con un solo comando de Docker 
 - [Arquitectura y decisiones de diseño](#arquitectura-y-decisiones-de-diseño)
 - [Desarrollo del frontend](#desarrollo-del-frontend)
 - [Estructura del repositorio](#estructura-del-repositorio)
+- [Declaración de uso de inteligencia artificial](#declaración-de-uso-de-inteligencia-artificial)
 
 ## Documentación
 
@@ -277,3 +278,24 @@ db/            migraciones, semilla y pruebas del esquema
 keycloak/      configuración del realm (identidad y roles), importada al arrancar
 docs/          enunciado, referencia de la API y documentos de diseño
 ```
+
+## Declaración de uso de inteligencia artificial
+
+Durante el desarrollo usamos **Claude Code** (de Anthropic, dentro de VS Code), con modelos de la familia Claude Opus y
+Sonnet. Lo declaramos aquí, como pide el enunciado, y describimos qué hizo la herramienta y qué decidió y comprobó el grupo.
+
+### Cómo se usó
+
+| Uso | Qué hizo la herramienta | Qué hizo el grupo |
+|---|---|---|
+| **Preguntas de diseño antes de programar** | Antes de escribir cada pieza importante planteó la decisión como pregunta, con alternativas y su costo: por ejemplo, si un invariante debía vivir en el motor o en la aplicación, o cuánto aislamiento pedirle a la transacción de reserva | Eligió entre las alternativas y fijó el alcance (por ejemplo, dejar el frontend como demostración con datos en memoria y no conectarlo a las APIs en esta etapa) |
+| **Repasar y explicar temas técnicos de forma simple** | Explicó conceptos con analogías y ejemplos concretos (la pizarra de la caché, dos recepcionistas sobre el mismo espacio, el orden de los bloqueos y el deadlock) y ayudó a repasar para la defensa | Pidió esas explicaciones para poder defender cada decisión por su cuenta; varias quedaron en esta documentación |
+| **Código, pruebas y documentación** | Escribió borradores de código (reserva transaccional, disponibilidad, caché con Redis, triggers y migraciones), de las pruebas (unitarias, concurrencia, barrido de aislamiento, matriz de permisos) y de la documentación, incluido el documento de diseño de datos | Revisó, ejecutó y corrigió lo producido, y confirmó cada cambio con un commit propio |
+| **Frontend** | Ayudó a construirlo (landing, ingreso por rol y pantallas con sus permisos) a partir de lo que se le pidió, y a pulirlo | Aportó las inspiraciones y las ideas, y definió cómo debía ser el frontend; revisó el resultado y pidió los ajustes |
+| **Verificación** | Corrió las pruebas contra la base real, midió los índices y la caché, y comprobó que las pruebas fallan cuando se rompe a propósito la regla que cubren | Decidió qué se midió y qué cuenta como correcto; contrastó lo que dijo la herramienta con el comportamiento observado (por ejemplo, una afirmación suya sobre qué responde la API cuando cae la base se corrigió contra lo medido) |
+
+### Lo que la herramienta no hizo
+
+- **No hizo commits.** Todos los commits del repositorio los hicieron las personas del grupo, desde su cuenta.
+- **No decidió por el grupo.** Las decisiones de diseño, el alcance y las compensaciones aceptadas (lo que se sacrificó en cada una está escrito en los documentos de diseño) las tomó el grupo.
+- **No sustituye la defensa.** Cada integrante responde de forma individual por lo que está en este repositorio.
