@@ -106,13 +106,38 @@ Sin token, cualquier ruta responde 401. Con `san-rafael-recepcion`, `/api/audito
 del administrador de la clínica. (`grant_type=password` es cómodo para pruebas; el login real del frontend sería
 *authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae configurado.)
 
+### Recorrido completo de una cita (script)
+
+Con el sistema levantado, un script hace el recorrido de una cita contra la API real, mostrando cada paso con su código HTTP:
+
+```powershell
+.\recorrido.ps1            # PowerShell (Windows)
+.\recorrido.ps1 -Pausar    # espera un Enter entre pasos, para explicarlo en vivo
+```
+
+Reserva (RF9), el mismo espacio otra vez (409, I1), que el espacio reservado ya no se ofrece (I8), que no se puede dar el
+desenlace antes de la hora (422), reprogramar (RF10), cancelar (RF11), cancelar una cancelada (409, RF13) y, sobre una cita
+pasada, el desenlace atendida (RF12) y su repetición (409). Termina con error si algún paso no devuelve lo esperado.
+
+Cada corrida deja citas canceladas y consume una cita pasada de la semilla. Esas citas pasadas aún reservadas solo existen
+cuando la base tiene unos días: en una base recién creada el último paso se omite con un aviso. `docker compose down -v`
+devuelve todo al estado inicial.
+
 ### Pruebas automáticas
 
 **Un solo comando corre todas las pruebas** (unitarias y de integración de los tres servicios), contra la misma base real:
 
 ```bash
-bash pruebas.sh
+bash pruebas.sh     # Linux, macOS o Git Bash
 ```
+
+```powershell
+.\pruebas.ps1       # PowerShell (Windows)
+```
+
+En Windows no uses `bash` desde PowerShell: abre el bash de WSL, que no tiene Docker. Usa `.\pruebas.ps1`, o ejecuta
+`pruebas.sh` desde Git Bash. Si PowerShell bloquea el script, corre
+`powershell -ExecutionPolicy Bypass -File .\pruebas.ps1`.
 
 No hay que preparar datos: las pruebas arman los suyos. Si un servicio falla, igual se corren los demás y el script termina
 con error; si pasan los tres, termina bien (tarda un par de minutos la primera vez, porque construye las imágenes).
