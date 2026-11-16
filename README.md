@@ -141,6 +141,22 @@ La referencia interactiva, generada desde el código, está en cada servicio:
 El razonamiento completo, con alternativas y trade-offs, está en [docs/diseno-datos.md](docs/diseno-datos.md) y
 [docs/diseno-seguridad.md](docs/diseno-seguridad.md). Aquí, lo esencial.
 
+### Vista general
+
+El navegador habla con un solo punto, el contenedor `web` (frontend y gateway nginx, puerto 8080). Desde ahí, `/api/<servicio>/`
+llega a la API que corresponde y `/auth/` a Keycloak. Las tres APIs validan los tokens contra las llaves públicas de Keycloak
+(`plataforma` además lo usa para crear cuentas), `agenda` guarda copias de la disponibilidad en Redis, y las tres consultan
+PostgreSQL con SQL parametrizado. El servicio `migraciones` prepara el esquema y la semilla antes de que arranque nada más.
+
+![Diagrama de arquitectura: navegador, frontend con gateway, las tres APIs, Keycloak, Redis, PostgreSQL y migraciones dentro de la red del compose](docs/Media/Diagrama%20de%20arquitectura.jpg)
+
+<details>
+<summary>Diagrama mixto: la misma arquitectura con los módulos de cada servicio por dentro</summary>
+
+![Diagrama mixto: la arquitectura del sistema con los módulos internos de agenda, plataforma, auditoría y común](docs/Media/Diagrama%20Completo.jpg)
+
+</details>
+
 ### Las citas no se solapan: lo garantiza el motor (I1 e I2)
 
 Un `if` en el código no basta: si dos recepcionistas reservan el mismo espacio a la vez, ambas consultas ven
@@ -170,8 +186,8 @@ Con una clave simple, el motor solo comprobaría que el profesional exista, y un
 quedar atada a un profesional de la B. Con la compuesta, el profesional debe ser de la **misma** clínica de la
 cita; si no, el motor rechaza (`23503`, que la API traduce a 422).
 
-Esto garantiza que **los datos son coherentes**, no **quién** puede verlos. De eso se encarga el token de
-Keycloak, que dice la clínica del usuario, y el código que filtra por ella. Son dos capas: si el código se
+Esto garantiza que **los datos son coherentes**, no **quién** puede verlos. De eso se encarga la sesión
+(el token de Keycloak dice quién es el usuario, y su clínica sale de la tabla `usuario`) y el código que filtra por ella. Son dos capas: si el código se
 equivoca, las claves compuestas impiden que los datos se mezclen.
 
 ### Migraciones: el mismo esquema en todos lados
@@ -189,6 +205,11 @@ no se puede reservar, pero sí gestionar pacientes o consultar la bitácora. El 
 datos: si cae, las tres responden 503 hasta que vuelve. Además, cada persona edita su propia carpeta sin
 pisar a la otra. Los servicios no se llaman entre sí, y cada tabla la escribe un solo servicio
 ([servicios/](servicios/README.md)).
+
+Lo que comparten vive en `comun/`: el arranque de la app (pool de conexiones, errores, logs), la sesión (validación del token) y
+las transacciones. Cada servicio se divide en un módulo por requisito.
+
+![Diagrama de módulos por servicio: auditoría, plataforma, agenda y el paquete común, con las funciones de cada módulo](docs/Media/Diagrama%20de%20modulos.png)
 
 ### nginx: servidor del frontend y gateway
 
