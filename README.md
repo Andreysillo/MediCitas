@@ -1,6 +1,34 @@
 # MediCitas
 
-## Levantar todo
+Sistema de gestión de citas para varias clínicas (multi-tenant): cada clínica ve solo lo suyo. Tres APIs en FastAPI
+(`agenda`, `plataforma`, `auditoria`) sobre PostgreSQL 16, Redis como caché, Keycloak para la identidad y nginx como
+gateway del frontend (React + Vite). Todo levanta con un solo comando de Docker Compose.
+
+## Contenido
+
+- [Documentación](#documentación)
+- [Levantar el sistema](#levantar-el-sistema)
+- [Probar el sistema](#probar-el-sistema)
+- [Rutas de la API](#rutas-de-la-api)
+- [Arquitectura y decisiones de diseño](#arquitectura-y-decisiones-de-diseño)
+- [Desarrollo del frontend](#desarrollo-del-frontend)
+- [Estructura del repositorio](#estructura-del-repositorio)
+
+## Documentación
+
+| Qué buscas | Dónde está |
+|---|---|
+| **Rutas de las API documentadas** (cuerpo, roles y errores de cada ruta) | [docs/api.md](docs/api.md) |
+| Diseño de datos: ER, diccionario, 3FN, aislamiento transaccional, índices y caché | [docs/diseno-datos.md](docs/diseno-datos.md) |
+| Diseño de seguridad: comparación de multi-tenancy, identidad, roles de base de datos y bitácora | [docs/diseno-seguridad.md](docs/diseno-seguridad.md) |
+| Documento de diseño completo (las dos partes anteriores) en PDF | [docs/MediCitas_Documento de diseno.pdf](docs/MediCitas_Documento%20de%20diseno.pdf) |
+| Modelo lógico: borrador previo, que los dos documentos de diseño amplían | [docs/diseno-modelo-logico.md](docs/diseno-modelo-logico.md) |
+| Base de datos: migraciones, semilla, índices y roles | [db/README.md](db/README.md) |
+| Servicios: reglas comunes, cómo agregar una ruta y las pruebas | [servicios/README.md](servicios/README.md) |
+| Servicio de agenda: reserva, ciclo de vida de la cita y caché | [servicios/agenda/README.md](servicios/agenda/README.md) |
+| Enunciado del proyecto | [docs/enunciado.md](docs/enunciado.md) |
+
+## Levantar el sistema
 
 Requisito: Docker Desktop (o Docker con Compose) **encendido**.
 
@@ -9,6 +37,8 @@ cp .env.example .env          # la primera vez; después, cambiar las contraseñ
 docker compose up -d --build  # construye y levanta todo; la primera vez tarda unos minutos
 docker compose ps             # todo "healthy"; "migraciones" en "Exited (0)"
 ```
+
+Cuando termine, el sistema está en **http://localhost:8080**.
 
 Si ya tenías un `.env` de antes, compáralo con `.env.example`: cada variable nueva que falte detiene el compose con un
 mensaje `falta X en .env`. Las últimas en agregarse fueron `AGENDA_DB_PASSWORD`, `PLATAFORMA_DB_PASSWORD` y
@@ -24,31 +54,60 @@ migraciones nuevas y conserva los datos.
 | `agenda`, `plataforma`, `auditoria` | Las tres APIs ([servicios/](servicios/README.md)). Cada una entra a la base con su propio rol |
 | `web` | El frontend compilado y el gateway hacia las APIs y Keycloak, en http://localhost:8080 |
 
-### Qué se puede probar y cómo
+Comandos útiles:
+
+- `docker compose logs -f agenda`: logs en JSON de un servicio.
+- `docker compose down`: apaga todo y conserva los datos. `down -v`: también borra la base.
+- `docker compose --profile herramientas up -d`: agrega pgAdmin en http://localhost:5050.
+
+## Probar el sistema
 
 **El frontend (http://localhost:8080) es una demostración con datos en memoria: no llama a las APIs.** Sirve para ver
 las pantallas y los permisos por rol ("Probar la demo" y elegir un usuario), pero lo que se haga ahí no llega a la base
-y se pierde al recargar. Ver [Frontend en modo desarrollo](#frontend-en-modo-desarrollo).
+y se pierde al recargar. Ver [Desarrollo del frontend](#desarrollo-del-frontend).
 
-**El sistema real se prueba contra las APIs**, con un token de Keycloak, igual que lo haría un cliente:
+**El sistema real se prueba contra las APIs**, con un token de Keycloak, igual que lo haría un cliente.
+
+### Usuarios de prueba
+
+Los 18 usuarios son los mismos de la semilla de la base (su `id` en Keycloak es igual al `keycloak_sub` que ya trae
+`db/seed/001_catalogos.sql`), todos con la contraseña **`medicitas123`**. Por ejemplo:
+
+| Usuario (Keycloak) | Rol | Clínica |
+|---|---|---|
+| `plataforma` | ADM_PLATAFORMA | — |
+| `san-rafael-admin` | ADM_CLINICA | Clínica San Rafael |
+| `san-rafael-recepcion` | RECEPCION | Clínica San Rafael |
+| `san-rafael-laura-mendez` | PROFESIONAL | Clínica San Rafael |
+
+(y lo mismo para `del-valle-*` y `los-robles-*`; la lista completa está en
+[keycloak/realm-export.json](keycloak/realm-export.json)). Consola de administración de Keycloak:
+http://localhost:8080/auth/admin (usuario y contraseña de `KEYCLOAK_ADMIN*` en `.env`; no son credenciales de la aplicación).
+
+### Reservar una cita paso a paso
+
+Los comandos son de bash (en Windows, Git Bash) y necesitan `jq`.
 
 ```bash
-# 1. Token de un usuario de prueba (contraseña medicitas123; la lista está en «Identidad»)
+# 1. Token de un usuario de prueba
 TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-connect/token   -d grant_type=password -d client_id=medicitas-api   -d username=san-rafael-recepcion -d password=medicitas123 | jq -r .access_token)
 
 # 2. Catálogo: un servicio y un profesional que lo atienda
 curl -s http://localhost:8080/api/plataforma/servicios      -H "Authorization: Bearer $TOKEN"
 curl -s http://localhost:8080/api/plataforma/profesionales  -H "Authorization: Bearer $TOKEN"
 
-# 3. Espacios libres (RF7) y reserva (RF9) con un paciente de GET /api/plataforma/pacientes
+# 3. Espacios libres (RF7) y reserva (RF9), con un paciente de GET /api/plataforma/pacientes
 curl -s "http://localhost:8080/api/agenda/profesionales/<profesional_id>/disponibilidad?servicio_id=<servicio_id>&fecha=2026-11-20"   -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://localhost:8080/api/agenda/citas -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json"   -d '{"paciente_id":"<paciente_id>","profesional_id":"<profesional_id>","servicio_id":"<servicio_id>","inicio":"<un espacio del paso 3>"}'
 ```
 
-Cada ruta, con su cuerpo, sus roles y sus errores, está en [docs/api.md](docs/api.md); la referencia generada, en
-`/api/agenda/docs`, `/api/plataforma/docs` y `/api/auditoria/docs`.
+Sin token, cualquier ruta responde 401. Con `san-rafael-recepcion`, `/api/auditoria/bitacora` responde 403: la bitácora es solo
+del administrador de la clínica. (`grant_type=password` es cómodo para pruebas; el login real del frontend sería
+*authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae configurado.)
 
-**Las pruebas automáticas** corren contra la misma base real, cada servicio por separado:
+### Pruebas automáticas
+
+Corren contra la misma base real, cada servicio por separado:
 
 ```bash
 docker compose --profile pruebas run --rm pruebas-agenda
@@ -58,114 +117,21 @@ docker compose --profile pruebas run --rm pruebas-auditoria
 
 Qué cubre cada una: [servicios/README.md](servicios/README.md#pruebas).
 
-### Comandos útiles
+## Rutas de la API
 
-- `docker compose logs -f agenda`: logs en JSON de un servicio.
-- `docker compose down`: apaga todo y conserva los datos. `down -v`: también borra la base.
-- `docker compose --profile herramientas up -d`: agrega pgAdmin en http://localhost:5050.
+**Rutas de las API documentadas: [docs/api.md](docs/api.md)**, con cada ruta, su cuerpo, sus roles y sus errores.
+La referencia interactiva, generada desde el código, está en cada servicio:
 
-## Estructura
-
-```
-frontend/    React + Vite; en Docker lo sirve nginx
-servicios/   las tres APIs (FastAPI) y su infraestructura común
-db/          migraciones, semilla y pruebas del esquema
-docs/        enunciado, diseño del modelo lógico y referencia de la API
-keycloak/        modulo keycloak para identidad y acceso (autenticación)
-```
-
-## Caché de disponibilidad (Redis)
-
-RF7 (qué horas libres tiene un profesional) es la consulta que más veces se ejecuta, y calcularla en PostgreSQL cuesta.
-Por eso se sirve desde Redis, que corre en el Compose sin disco y sin puerto publicado. **Redis solo guarda copias**: la verdad
-siempre está en PostgreSQL, y si Redis se apaga, la agenda sigue funcionando desde la base, algo más lenta.
-
-### Cómo pensarla: una pizarra con hojas
-
-Imagina la recepción de la clínica:
-
-- **La agenda oficial es PostgreSQL.** Siempre es correcta, pero contestar "¿qué horas libres tiene la Dra. Méndez el lunes?"
-  obliga a revisar horarios, bloqueos y citas.
-- **Redis es una pizarra con hojas ya resueltas**, por ejemplo: «Dra. Méndez · lunes 16 · Control de 15 min → libres 8:00, 8:15,
-  8:30…». Leer una hoja es casi instantáneo.
-- **Cada hoja es la copia de UNA consulta**. Su título es la *clave*: clínica, profesional, servicio, duración, fecha y un número
-  de edición. Si cualquiera de esos datos cambia, el título es otro y se busca (o se crea) otra hoja.
-- **Cada profesional tiene un letrero con su número de edición.** Reservar, cancelar, reprogramar o cambiar sus horarios o
-  bloqueos sube el letrero (de 7 a 8). Las hojas de la edición 7 siguen en la pizarra, pero nadie las vuelve a buscar: todos
-  piden la 8. Así, **un solo número invalida todas las fechas y servicios de ese profesional**, sin buscar hoja por hoja.
-- **Un conserje tira cada hoja a los 5 minutos** (el *TTL*). No repone nada ni vuelve a una versión anterior: solo la tira, y la
-  siguiente consulta la recalcula. Es una red de seguridad por si un letrero no llegó a subir; no es lo que mantiene correcta
-  la caché.
-
-Un ejemplo, con Ana y Beto que consultan, y Luis que reserva:
-
-| Hora | Qué ocurre | Letrero | Hojas en la pizarra |
+| Servicio | Prefijo (por el gateway) | Referencia interactiva | Qué cubre |
 |---|---|---|---|
-| 9:00 | Ana consulta el lunes 16. No hay hoja: se calcula en PostgreSQL y se cuelga la hoja | 7 | edición 7 |
-| 9:01 | Beto consulta lo mismo: lee la hoja, sin calcular | 7 | edición 7 |
-| 9:02 | Luis reserva las 8:00. Primero la cita queda **confirmada** en PostgreSQL; luego sube el letrero; recién entonces se le responde | 8 | edición 7 (invisible) |
-| 9:03 | Ana vuelve a consultar: busca la edición 8, no hay hoja, calcula, ya no ve las 8:00 libres y cuelga la hoja nueva | 8 | edición 7, edición 8 |
-| 9:05 | El conserje tira la hoja de la edición 7 | 8 | edición 8 |
+| Agenda | `/api/agenda` | http://localhost:8080/api/agenda/docs | Horarios, bloqueos, disponibilidad y citas (RF5 a RF13, RF20) |
+| Plataforma | `/api/plataforma` | http://localhost:8080/api/plataforma/docs | Clínicas, usuarios, catálogo, pacientes y notas (RF1 a RF4, RF14 a RF16) |
+| Auditoría | `/api/auditoria` | http://localhost:8080/api/auditoria/docs | Bitácora y reportes (RF19, RF21) |
 
-Por eso la caché **no miente** (invariante I8): quien reserva nunca ve su espacio libre al volver a consultar, y no hay que
-esperar a que venza nada. El orden importa: si el letrero subiera *antes* de confirmar la cita, alguien podría colgar una hoja
-nueva sin ver todavía la reserva, y esa hoja falsa se quedaría.
+## Arquitectura y decisiones de diseño
 
-Tres cosas que suelen confundirse:
-
-1. **Cambiar la duración de un servicio no sube el letrero.** La duración está en el título de la hoja, así que las consultas
-   piden hojas nuevas por su cuenta. Por eso `plataforma` puede editar servicios sin saber que existe Redis.
-2. **Si la pizarra se llena,** Redis tira hojas primero y nunca letreros: si un letrero desapareciera, volvería a 0 y podrían
-   reaparecer hojas viejas.
-3. **Redis no guarda nada en disco, a propósito.** Al reiniciarse arranca con la pizarra vacía, y eso siempre es correcto. Un
-   respaldo traería hojas que quizá ya no son verdad.
-
-Con los índices de la base, una hoja ahorra unos 2 ms por consulta; sin ellos, más del doble
-([medición](servicios/agenda/README.md#qué-se-midió-t34)). Todas las decisiones, la incoherencia que queda y por qué:
-[servicios/agenda/README.md](servicios/agenda/README.md#caché-de-disponibilidad-rf7-i8).
-
-## Identidad (Keycloak)
-
-Las APIs no implementan login: lo hace Keycloak, que corre como contenedor más del compose. Su realm
-(`medicitas`), roles, *clients* y usuarios de prueba se importan de
-[keycloak/realm-export.json](keycloak/realm-export.json) al arrancar, sin pasos manuales. Consola de
-administración: http://localhost:8080/auth/admin (usuario y contraseña de `KEYCLOAK_ADMIN*` en `.env`, no son
-credenciales de la aplicación).
-
-Los 18 usuarios de prueba son los mismos de la semilla de la base (su `id` en Keycloak es igual al
-`keycloak_sub` que ya trae `db/seed/001_catalogos.sql`), con la contraseña **`medicitas123`**. Por ejemplo:
-
-| Usuario (Keycloak) | Rol | Clínica |
-|---|---|---|
-| `plataforma` | ADM_PLATAFORMA | — |
-| `san-rafael-admin` | ADM_CLINICA | Clínica San Rafael |
-| `san-rafael-recepcion` | RECEPCION | Clínica San Rafael |
-| `san-rafael-laura-mendez` | PROFESIONAL | Clínica San Rafael |
-
-(y lo mismo para `del-valle-*` y `los-robles-*`; la lista completa está en el propio
-`realm-export.json`).
-
-Para pedir un token y llamar a la API (reemplaza `<usuario>`):
-
-```bash
-TOKEN=$(curl -s http://localhost:8080/auth/realms/medicitas/protocol/openid-connect/token \
-  -d grant_type=password -d client_id=medicitas-api \
-  -d username=<usuario> -d password=medicitas123 | jq -r .access_token)
-
-curl -s http://localhost:8080/api/agenda/profesionales -H "Authorization: Bearer $TOKEN"
-```
-
-Con `san-rafael-admin` devuelve los profesionales de su clínica, y sin token, 401. Con `san-rafael-recepcion`, `/api/auditoria/bitacora` responde 403: la bitácora es solo del administrador de la clínica.
-
-(`grant_type=password` es cómodo para pruebas y para la colección de peticiones; en un login real del
-frontend sería *authorization code* + PKCE con el *client* `medicitas-web`, que el realm ya trae
-configurado para cuando el frontend deje de usar datos en memoria.)
-
-Cómo se asocia cada identidad con su clínica, y el resto de las decisiones de este módulo (por qué no se
-valida `aud`, por qué el realm no persiste datos propios) están documentadas en
-[docs/diseno-seguridad.md](docs/diseno-seguridad.md#2-identidad-delegada-keycloak).
-
-## Decisiones de diseño
+El razonamiento completo, con alternativas y trade-offs, está en [docs/diseno-datos.md](docs/diseno-datos.md) y
+[docs/diseno-seguridad.md](docs/diseno-seguridad.md). Aquí, lo esencial.
 
 ### Las citas no se solapan: lo garantiza el motor (I1 e I2)
 
@@ -226,7 +192,64 @@ responde. Aquí el destino va en una variable ([frontend/nginx.conf](frontend/ng
 cada solicitud: la página arranca aunque una API esté caída, esa API responde 502 y las demás siguen. Cuando
 vuelve, funciona sin reiniciar nada.
 
-## Frontend en modo desarrollo
+### Identidad: Keycloak, no código propio
+
+Las APIs no implementan login: lo hace Keycloak, que corre como un contenedor más. Su realm (`medicitas`), roles,
+*clients* y usuarios de prueba se importan de [keycloak/realm-export.json](keycloak/realm-export.json) al arrancar. Cada
+API valida el token contra las llaves del realm y busca al usuario en la base, de donde salen su clínica y su rol. Por qué
+así (y por qué no se valida `aud`): [docs/diseno-seguridad.md](docs/diseno-seguridad.md#2-identidad-delegada-keycloak).
+
+### Caché de disponibilidad (Redis)
+
+RF7 (qué horas libres tiene un profesional) es la consulta que más veces se ejecuta, y calcularla en PostgreSQL cuesta.
+Por eso se sirve desde Redis, que corre en el Compose sin disco y sin puerto publicado. **Redis solo guarda copias**: la verdad
+siempre está en PostgreSQL, y si Redis se apaga, la agenda sigue funcionando desde la base, algo más lenta.
+
+#### Cómo pensarla: una pizarra con hojas
+
+Imagina la recepción de la clínica:
+
+- **La agenda oficial es PostgreSQL.** Siempre es correcta, pero contestar "¿qué horas libres tiene la Dra. Méndez el lunes?"
+  obliga a revisar horarios, bloqueos y citas.
+- **Redis es una pizarra con hojas ya resueltas**, por ejemplo: «Dra. Méndez · lunes 16 · Control de 15 min → libres 8:00, 8:15,
+  8:30…». Leer una hoja es casi instantáneo.
+- **Cada hoja es la copia de UNA consulta**. Su título es la *clave*: clínica, profesional, servicio, duración, fecha y un número
+  de edición. Si cualquiera de esos datos cambia, el título es otro y se busca (o se crea) otra hoja.
+- **Cada profesional tiene un letrero con su número de edición.** Reservar, cancelar, reprogramar o cambiar sus horarios o
+  bloqueos sube el letrero (de 7 a 8). Las hojas de la edición 7 siguen en la pizarra, pero nadie las vuelve a buscar: todos
+  piden la 8. Así, **un solo número invalida todas las fechas y servicios de ese profesional**, sin buscar hoja por hoja.
+- **Un conserje tira cada hoja a los 5 minutos** (el *TTL*). No repone nada ni vuelve a una versión anterior: solo la tira, y la
+  siguiente consulta la recalcula. Es una red de seguridad por si un letrero no llegó a subir; no es lo que mantiene correcta
+  la caché.
+
+Un ejemplo, con Ana y Beto que consultan, y Luis que reserva:
+
+| Hora | Qué ocurre | Letrero | Hojas en la pizarra |
+|---|---|---|---|
+| 9:00 | Ana consulta el lunes 16. No hay hoja: se calcula en PostgreSQL y se cuelga la hoja | 7 | edición 7 |
+| 9:01 | Beto consulta lo mismo: lee la hoja, sin calcular | 7 | edición 7 |
+| 9:02 | Luis reserva las 8:00. Primero la cita queda **confirmada** en PostgreSQL; luego sube el letrero; recién entonces se le responde | 8 | edición 7 (invisible) |
+| 9:03 | Ana vuelve a consultar: busca la edición 8, no hay hoja, calcula, ya no ve las 8:00 libres y cuelga la hoja nueva | 8 | edición 7, edición 8 |
+| 9:05 | El conserje tira la hoja de la edición 7 | 8 | edición 8 |
+
+Por eso la caché **no miente** (invariante I8): quien reserva nunca ve su espacio libre al volver a consultar, y no hay que
+esperar a que venza nada. El orden importa: si el letrero subiera *antes* de confirmar la cita, alguien podría colgar una hoja
+nueva sin ver todavía la reserva, y esa hoja falsa se quedaría.
+
+Tres cosas que suelen confundirse:
+
+1. **Cambiar la duración de un servicio no sube el letrero.** La duración está en el título de la hoja, así que las consultas
+   piden hojas nuevas por su cuenta. Por eso `plataforma` puede editar servicios sin saber que existe Redis.
+2. **Si la pizarra se llena,** Redis tira hojas primero y nunca letreros: si un letrero desapareciera, volvería a 0 y podrían
+   reaparecer hojas viejas.
+3. **Redis no guarda nada en disco, a propósito.** Al reiniciarse arranca con la pizarra vacía, y eso siempre es correcto. Un
+   respaldo traería hojas que quizá ya no son verdad.
+
+Con los índices de la base, una hoja ahorra unos 2 ms por consulta; sin ellos, más del doble
+([medición](servicios/agenda/README.md#qué-se-midió-t34)). Todas las decisiones, la incoherencia que queda y por qué:
+[servicios/agenda/README.md](servicios/agenda/README.md#caché-de-disponibilidad-rf7-i8).
+
+## Desarrollo del frontend
 
 > El frontend todavía usa datos de prueba en memoria; cada función de `frontend/src/api/` se cambiará por un
 > `fetch` a `/api/<servicio>/...`.
@@ -243,3 +266,14 @@ npm run dev      # abre http://localhost:5173
 - **"Probar la demo"** abre el ingreso: se elige rol, clínica y usuario de prueba. Dentro solo aparece lo que ese rol puede ver, como pasará luego con el token de Keycloak. **"Cambiar de rol"** vuelve a esa pantalla y **"Salir"** regresa a la landing.
 - Los cambios hechos en la página viven en memoria: al recargar vuelven los datos de prueba.
 - `npm run build` verifica los tipos y compila. Conviene correrlo antes de hacer commit.
+
+## Estructura del repositorio
+
+```
+compose.yml    levanta todo el sistema; .env.example trae las variables que necesita
+frontend/      React + Vite; en Docker lo sirve nginx (nginx.conf)
+servicios/     las tres APIs (FastAPI), su infraestructura común y las pruebas compartidas
+db/            migraciones, semilla y pruebas del esquema
+keycloak/      configuración del realm (identidad y roles), importada al arrancar
+docs/          enunciado, referencia de la API y documentos de diseño
+```

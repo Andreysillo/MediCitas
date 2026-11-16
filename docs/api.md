@@ -15,7 +15,7 @@ resume y agrega lo que no se ve allí: los roles, las reglas y el porqué de cad
 **Base.** Todo pasa por el gateway: `http://localhost:8080`. Las APIs no publican puertos propios.
 
 **Autenticación.** Cada solicitud lleva `Authorization: Bearer <token>`. El token lo emite Keycloak; cómo pedirlo está en
-el [README](../README.md#identidad-keycloak). La clínica y el rol salen del usuario dueño del token, **nunca de la
+el [README](../README.md#usuarios-de-prueba). La clínica y el rol salen del usuario dueño del token, **nunca de la
 solicitud**: enviar un `clinica_id` no sirve de nada (I5).
 
 **Roles.** `ADM_PLATAFORMA` (plataforma), `ADM_CLINICA` (administrador de clínica), `RECEPCION` y `PROFESIONAL`.

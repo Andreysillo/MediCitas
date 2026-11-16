@@ -1,7 +1,7 @@
 # Servicio de agenda
 
 Horarios, bloqueos, disponibilidad y el ciclo de vida de la cita. Documentación interactiva de las
-rutas: http://localhost:8080/api/agenda/docs. Pruebas: ver [../README.md](../README.md#pruebas).
+rutas: http://localhost:8080/api/agenda/docs. Pruebas: ver [../README.md](../README.md#pruebas-automáticas).
 
 ## Rutas
 
